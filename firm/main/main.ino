@@ -11,16 +11,12 @@ bool dmpReady = false;  // set true if DMP init was successful
 uint8_t mpuIntStatus;   // holds actual interrupt status byte from MPU
 uint8_t devStatus;      // return status after each device operation (0 = success, !0 = error)
 uint16_t packetSize;    // expected DMP packet size (default is 42 bytes)
-uint16_t fifoCount;     // count of all bytes currently in FIFO
+// uint16_t fifoCount;     // count of all bytes currently in FIFO
 uint8_t fifoBuffer[64]; // FIFO storage buffer
 
 // orientation/motion vars
 Quaternion q;           // [w, x, y, z]         quaternion container
-// VectorInt16 aa;         // [x, y, z]            accel sensor measurements
-// VectorInt16 aaReal;     // [x, y, z]            gravity-free accel sensor measurements
-// VectorInt16 aaWorld;    // [x, y, z]            world-frame accel sensor measurements
 VectorFloat gravity;    // [x, y, z]            gravity vector
-// float euler[3];         // [psi, theta, phi]    Euler angle container
 float ypr[3];           // [yaw, pitch, roll]   yaw/pitch/roll container and gravity vector
 
 volatile bool mpuInterrupt = false;     // indicates whether MPU interrupt pin has gone high
@@ -40,9 +36,7 @@ const int pin_HRL = 9; //pwm
 const int pin_HRM = 10; //pwm
 const int pin_HRR = 11; //pwm
 
-// const int GYRO_ADDRESS = 0x68;
-
-#define OUTPUT_FORMAT 1
+#define OUTPUT_FORMAT 0
 
 int16_t read_vals[8];
 
@@ -107,21 +101,6 @@ void setup() {
         Serial.println(F(")"));
     }
 
-
-
-//   Wire.begin();
-//   Wire.beginTransmission(GYRO_ADDRESS);
-//   Wire.write(0x6B);
-//   Wire.write(0);
-// #if OUTPUT_FORMAT == 1
-//   Serial.println("Connecting...");
-// #endif
-//   Wire.endTransmission(true);
-
-// #if OUTPUT_FORMAT == 1
-//   Serial.println("Connected to board");
-// #endif
-
     read_vals[7] = 0;
 }
 
@@ -135,7 +114,7 @@ void loop() {
             mpu.dmpGetYawPitchRoll(ypr, &q, &gravity);
 
 #if OUTPUT_FORMAT == 0
-            Serial.write((byte*)ypr, 12)
+            Serial.write((byte*)ypr, 12);
             Serial.write(0);
             Serial.write(0);
             Serial.write(0);
@@ -149,23 +128,7 @@ void loop() {
             Serial.println(ypr[2] * 180/M_PI);
 #endif
     }
-//   Wire.beginTransmission(GYRO_ADDRESS);
-//   Wire.write(0x3B);  
-//   Wire.endTransmission(false);
-//   Wire.requestFrom(GYRO_ADDRESS,14,true);  
-    // for (int i = 0; i < 7; i++)
-    //     read_vals[i] = Wire.read()<<8|Wire.read();  
 
-// #if OUTPUT_FORMAT == 0
-//     Serial.write((byte*)read_vals, 16);
-// #else
-//     for (int i = 0; i < 8; i++){
-//         Serial.print(read_vals[i]);
-//         Serial.print("\t");
-//     }
-//     Serial.println();
-
-// #endif
-
-    delay(70);
+    delay(1000);
+    // delay(10);
 }

@@ -16,7 +16,7 @@ class BoardToMIDI(StoppableThread):
 
     def dpr(self, msg, l=1):
         if self._debug >= l:
-            print(self.MODULE_IDENTIFIER + msg)
+            print(self.MODULE_IDENTIFIER + ": " + msg)
 
     def run(self):
         pub.subscribe(self.handleFingerConnection, 'FingerConnection')
@@ -51,6 +51,12 @@ class BoardToMIDI(StoppableThread):
         self._midiout.send_message([NOTE_OFF, pitch, 0])
 
     def cc(self, cc=0, value=0):
+        if value < 0:
+            self.dpr("Correcting cc value {} to 0".format(value))
+            value = 0
+        if value > 255:
+            self.dpr("Correcting cc value {} to 255".format(value))
+            value = 255
         self.dpr("sending cc {}={}".format(cc, value), l=3)
         self._midiout.send_message([CONTROL_CHANGE, cc, value])
 

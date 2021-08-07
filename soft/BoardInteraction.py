@@ -54,12 +54,12 @@ class BoardInteractor(ThreadExtension.StoppableThread):
 
     # MAIN LIFECYCLE
 
-    def __init__(self, plotOutput=False, publishOutput=True, runCalibration=True):
+    def __init__(self, plotOutput=False, publishOutput=True, runCalibration=False):
         super().__init__()
         self.publishOutput = publishOutput
         self.plotOutput = plotOutput
         self.runCalibration = runCalibration
-        self.offsets = [0] * 8
+        self.offsets = [0] * 4
 
         self._lroll = 0.0
         self._lpitch = 0.0
@@ -83,7 +83,7 @@ class BoardInteractor(ThreadExtension.StoppableThread):
         self._isconnected = False
 
         self.plotLen = 30
-        self.plotVals = np.zeros((6, self.plotLen))
+        self.plotVals = np.zeros((3, self.plotLen))
 
     def run(self):
         if not self._isconnected:
@@ -100,9 +100,9 @@ class BoardInteractor(ThreadExtension.StoppableThread):
             plt.ion()
             self.fig = plt.figure()
             self.ax = self.fig.add_subplot(1, 1, 1)
-            self.ax.set_ylim(-20000, 20000)
+            self.ax.set_ylim(-2*3.14159, 2*3.14159)
             self.ls = []
-            for i in range(6):
+            for i in range(3):
                 l, = self.ax.plot(self.plotVals[i, :])
                 l.set_label(str(i))
                 self.ls.append(l)
@@ -114,7 +114,7 @@ class BoardInteractor(ThreadExtension.StoppableThread):
             self.sendBoardHapticData()
 
             if self.plotOutput:
-                for i in range(6):
+                for i in range(3):
                     self.ls[i].set_ydata(self.plotVals[i, :])
                     plt.pause(.01)
                     # self.ax.relim()
@@ -159,19 +159,29 @@ class BoardInteractor(ThreadExtension.StoppableThread):
     def alignSerialInput(self):
         print("Aligning serial input")
         while True:
-            vals = np.array(struct.unpack('16b', self._board.read(16)))
+            # vals = np.array(struct.unpack('16b', self._board.read(16)))
+            # print(vals)
+            # if np.count_nonzero(vals) == len(vals) - 4 and vals[-1] == 0 and vals[-2] == 0 and vals[-3] == 0 and vals[-4] == 0:
+            #     break
+            vals = np.array(struct.unpack('4f', self._board.read(16)))
             print(vals)
-            if np.count_nonzero(vals) == len(vals) - 2 and vals[-1] == 0 and vals[-2] == 0:
+            if np.count_nonzero(vals) == len(vals) - 1 and vals[-1] == 0:
                 break
-            self._board.read(1)
+            if np.count_nonzero(vals) == len(vals) - 1:
+                for i in range(len(vals)):
+                    self._board.read(4)
+                    if vals[i] == 0:
+                        break
+            else:
+                self._board.read(1)
 
     def calibrateBoard(self):
         print("Calibrating, hold still!")
         NUM_CALIB_PASSES = 5
         self._board.flushInput()
-        offs = np.zeros((8, NUM_CALIB_PASSES))
+        offs = np.zeros((4, NUM_CALIB_PASSES))
         for i in range(NUM_CALIB_PASSES):
-            vals = struct.unpack('8h', self._board.read(16))
+            vals = struct.unpack('4f', self._board.read(16))
             assert vals[-1] == 0
             print(vals, offs)
             offs[:, i] = np.array(vals)
@@ -180,26 +190,26 @@ class BoardInteractor(ThreadExtension.StoppableThread):
 
     def parseBoardMsg(self):
         # TODO use numpy to linearly scale 0.0-1.0 on range defined in calibration step
-        # TODO no idea what order these are being read in now
+        # TODO roll pitch and yaw are probably out of order
         # TODO Read from other board also
         dat = self._board.read(16)
         while self._board.in_waiting >= 16:
             dat = self._board.read(16)
-        vals = struct.unpack('8h', dat)
+        vals = struct.unpack('4f', dat)
         vals = np.array(vals) - self.offsets
         print(vals)
         self._lroll = vals[0]
         self._lpitch = vals[1]
         self._lyaw = vals[2]
-        self._rroll = vals[4]
-        self._rpitch = vals[5]
-        self._ryaw = vals[6]
+        # self._rroll = vals[4]
+        # self._rpitch = vals[5]
+        # self._ryaw = vals[6]
 
         # print(self.plotVals)
         if self.plotOutput:
             self.plotVals = np.roll(self.plotVals, -1, axis=1)
             self.plotVals[0:3, -1] = vals[0:3]
-            self.plotVals[3:6, -1] = vals[4:7]
+            # self.plotVals[3:6, -1] = vals[4:7]
 
     def sendBoardHapticData(self):
         # TODO
