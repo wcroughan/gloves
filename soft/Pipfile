@@ -10,6 +10,7 @@ autopep8 = "*"
 pypubsub = "*"
 numpy = "*"
 python-rtmidi = "*"
+matplotlib = "*"
 
 [dev-packages]
 

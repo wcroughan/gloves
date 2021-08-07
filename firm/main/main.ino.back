@@ -1,0 +1,74 @@
+#include "GY521.h"
+
+GY521 lsensor(0x68);
+
+const int pin_HLT = 2;
+const int pin_HLP = 4;
+const int pin_HLL = 3; //pwm
+const int pin_HLM = 5; //pwm
+const int pin_HLR = 6; //pwm
+const int pin_HRT = 7;
+const int pin_HRP = 8;
+const int pin_HRL = 9; //pwm
+const int pin_HRM = 10; //pwm
+const int pin_HRR = 11; //pwm
+
+
+void setup() {
+  // put your setup code here, to run once:
+  Serial.begin(115200);
+  Serial.println("Hello!");
+
+    Wire.begin();
+
+  delay(100);
+  while (lsensor.wakeup() == false)
+  {
+    Serial.print(millis());
+    Serial.println("\tCould not connect to GY521");
+    delay(1000);
+  }
+  lsensor.setAccelSensitivity(0);  // 2g
+  lsensor.setGyroSensitivity(0);   // 250 degrees/s
+
+  lsensor.setThrottle();
+  Serial.println("start...");
+  
+  // set callibration values from calibration sketch.
+  lsensor.axe = 0;
+  lsensor.aye = 0;
+  lsensor.aze = 0;
+  lsensor.gxe = 0;
+  lsensor.gye = 0;
+  lsensor.gze = 0;
+}
+
+void loop() {
+  // put your main code here, to run repeatedly:
+  lsensor.read();
+  float ax = lsensor.getAccelX();
+  float ay = lsensor.getAccelY();
+  float az = lsensor.getAccelZ();
+  float gx = lsensor.getGyroX();
+  float gy = lsensor.getGyroY();
+  float gz = lsensor.getGyroZ();
+  float t = lsensor.getTemperature();
+
+  Serial.print('\t');
+  Serial.print(ax);
+  Serial.print('\t');
+  Serial.print(ay);
+  Serial.print('\t');
+  Serial.print(az);
+  Serial.print('\t');
+  Serial.print(gx);
+  Serial.print('\t');
+  Serial.print(gy);
+  Serial.print('\t');
+  Serial.print(gz);
+  Serial.print('\t');
+  Serial.print(t);
+  Serial.println();
+
+  delay(200);
+}
