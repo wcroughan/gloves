@@ -57,8 +57,11 @@ void setup() {
     mpu.initialize();
     pinMode(INTERRUPT_PIN, INPUT);
 
+    bool tc = mpu.testConnection();
+#if OUTPUT_FORMAT == 1
     Serial.println(F("Testing device connections..."));
-    Serial.println(mpu.testConnection() ? F("MPU6050 connection successful") : F("MPU6050 connection failed"));
+    Serial.println(tc ? F("MPU6050 connection successful") : F("MPU6050 connection failed"));
+#endif
 
     devStatus = mpu.dmpInitialize();
 
@@ -75,18 +78,24 @@ void setup() {
         mpu.CalibrateGyro(6);
         mpu.PrintActiveOffsets();
         // turn on the DMP, now that it's ready
+#if OUTPUT_FORMAT == 1
         Serial.println(F("Enabling DMP..."));
+#endif
         mpu.setDMPEnabled(true);
 
         // enable Arduino interrupt detection
+#if OUTPUT_FORMAT == 1
         Serial.print(F("Enabling interrupt detection (Arduino external interrupt "));
         Serial.print(digitalPinToInterrupt(INTERRUPT_PIN));
         Serial.println(F(")..."));
+#endif
         attachInterrupt(digitalPinToInterrupt(INTERRUPT_PIN), dmpDataReady, RISING);
         mpuIntStatus = mpu.getIntStatus();
 
         // set our DMP Ready flag so the main loop() function knows it's okay to use it
+#if OUTPUT_FORMAT == 1
         Serial.println(F("DMP ready! Waiting for first interrupt..."));
+#endif
         dmpReady = true;
 
         // get expected DMP packet size for later comparison
@@ -115,9 +124,9 @@ void loop() {
 
 #if OUTPUT_FORMAT == 0
             Serial.write((byte*)ypr, 12);
-            Serial.write(0);
-            Serial.write(0);
-            Serial.write(0);
+            Serial.write(3);
+            Serial.write(2);
+            Serial.write(1);
             Serial.write(0);
 #else
             Serial.print("ypr\t");

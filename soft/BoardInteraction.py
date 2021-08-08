@@ -163,21 +163,24 @@ class BoardInteractor(ThreadExtension.StoppableThread):
     def alignSerialInput(self):
         print("Aligning serial input")
         while True:
-            # vals = np.array(struct.unpack('16b', self._board.read(16)))
+            vals = np.array(struct.unpack('16b', self._board.read(16)))
+            if vals[-1] == 0 and vals[-2] == 1 and vals[-3] == 2 and vals[-4] == 3:
+                break
             # print(vals)
             # if np.count_nonzero(vals) == len(vals) - 4 and vals[-1] == 0 and vals[-2] == 0 and vals[-3] == 0 and vals[-4] == 0:
             #     break
-            vals = np.array(struct.unpack('4f', self._board.read(16)))
+            # vals = np.array(struct.unpack('4f', self._board.read(16)))
             print(vals)
-            if np.count_nonzero(vals) == len(vals) - 1 and vals[-1] == 0:
-                break
-            if np.count_nonzero(vals) == len(vals) - 1:
-                for i in range(len(vals)):
-                    self._board.read(4)
-                    if vals[i] == 0:
-                        break
-            else:
-                self._board.read(1)
+            # if np.count_nonzero(vals) == len(vals) - 1 and vals[-1] == 0:
+            # break
+            # if np.count_nonzero(vals) == len(vals) - 1:
+            #     for i in range(len(vals)):
+            #         self._board.read(4)
+            #         if vals[i] == 0:
+            #             break
+            # else:
+            #     self._board.read(1)
+            self._board.read(1)
 
     def calibrateBoard(self):
         print("Calibrating, hold still!")
@@ -194,17 +197,17 @@ class BoardInteractor(ThreadExtension.StoppableThread):
 
     def parseBoardMsg(self):
         # TODO use numpy to linearly scale 0.0-1.0 on range defined in calibration step
-        # TODO roll pitch and yaw are probably out of order
         # TODO Read from other board also
         dat = self._board.read(16)
         while self._board.in_waiting >= 16:
             dat = self._board.read(16)
         vals = struct.unpack('4f', dat)
         vals = np.array(vals) - self.offsets
-        print(vals)
-        self._lroll = vals[0]
-        self._lpitch = vals[1]
-        self._lyaw = vals[2]
+        # print(vals)
+        p = 3.1415926
+        self._rroll = (vals[2] + p/2.0) / (2.0*p)
+        self._rpitch = (vals[1] + p/2.0) / (2.0*p)
+        self._ryaw = (vals[0] + p/2.0) / (2.0*p)
         # self._rroll = vals[4]
         # self._rpitch = vals[5]
         # self._ryaw = vals[6]
