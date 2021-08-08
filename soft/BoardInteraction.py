@@ -148,7 +148,11 @@ class BoardInteractor(ThreadExtension.StoppableThread):
 
     # COMMUNICATION FUNCTIONS WITH BOARD
     def connectToBoard(self):
-        self._board = serial.Serial(port="/dev/ttyACM0", baudrate=115200)
+        try:
+            self._board = serial.Serial(port="/dev/ttyACM0", baudrate=115200)
+        except:
+            self._board = serial.Serial(port="/dev/ttyACM1", baudrate=115200)
+
         print("board: {}".format(self._board))
         if self._board is None:
             return 1
