@@ -1,126 +1,225 @@
-from pubsub import pub
-from rtmidi.midiutil import open_midioutput
+from PyQt5.QtWidgets import QWidget, QApplication, QVBoxLayout, QHBoxLayout, QLabel, QCheckBox, QSpinBox, QSlider, QPushButton
+from PyQt5.QtCore import Qt, QTimer
 from rtmidi.midiconstants import NOTE_OFF, NOTE_ON, CONTROL_CHANGE, PITCH_BEND
 
-from BoardInteraction import BoardInteractor, Fingers
-from ThreadExtension import StoppableThread
+
+class MIDIMapping:
+    def __init__(self, midiport):
+        self.midiport = midiport
+
+    def rightRollChanged(self, val):
+        pass
+
+    def rightPitchChanged(self, val):
+        pass
+
+    def rightYawChanged(self, val):
+        pass
+
+    def leftRollChanged(self, val):
+        pass
+
+    def leftPitchChanged(self, val):
+        pass
+
+    def leftYawChanged(self, val):
+        pass
 
 
-class BoardToMIDI(StoppableThread):
-    def __init__(self, debug=1):
-        self._debug = debug
-        self.MODULE_IDENTIFIER = "BoardToMIDI"
-        self._b = BoardInteractor()
+class M1(MIDIMapping):
+    def __init__(self, midiport):
+        super().__init__(midiport)
 
-        self._midiout, self._port_name = open_midioutput()
+        self.rr_ccnum = 22
+        self.rp_ccnum = 23
+        self.ry_ccnum = 24
+        self.rr_enabled = True
+        self.rp_enabled = True
+        self.ry_enabled = True
 
-    def dpr(self, msg, l=1):
-        if self._debug >= l:
-            print(self.MODULE_IDENTIFIER + ": " + msg)
+        self.lr_ccnum = 25
+        self.lp_ccnum = 26
+        self.ly_ccnum = 27
+        self.lr_enabled = True
+        self.lp_enabled = True
+        self.ly_enabled = True
 
-    def run(self):
-        pub.subscribe(self.handleFingerConnection, 'FingerConnection')
-        pub.subscribe(self.handleLGyroData, 'LGyro')
-        pub.subscribe(self.handleRGyroData, 'RGyro')
+        self.widget = QWidget()
+        self.initWidget()
 
-        self._b.start()
+    def initWidget(self):
+        layout = QVBoxLayout()
 
-        cmd = None
-        while cmd is None:
-            cmd = input("input q to quit:")
+        l1 = QHBoxLayout()
+        l1.addWidget(QLabel("Right Roll"))
+        self.rrcb = QCheckBox("Enabled")
+        self.rrcb.setChecked(self.rr_enabled)
+        self.rrcb.stateChanged.connect(lambda: self.btnstate("rr", self.rrcb))
+        l1.addWidget(QLabel("Midi cc:"))
+        self.rrsb = QSpinBox()
+        self.rrsb.setValue(self.rr_ccnum)
+        self.rrsb.valueChanged.connect(lambda: self.spinstate("rr", self.rrsb))
+        l1.addWidget(self.rrsb)
+        l1.addWidget(self.rrcb)
+        self.rrvalLabel = QLabel("0")
+        l1.addWidget(QLabel("Value:"))
+        l1.addWidget(self.rrvalLabel)
+        layout.addLayout(l1)
 
-        self._b.stop()
+        l2 = QHBoxLayout()
+        l2.addWidget(QLabel("Right Pitch"))
+        self.rpcb = QCheckBox("Enabled")
+        self.rpcb.setChecked(self.rp_enabled)
+        self.rpcb.stateChanged.connect(lambda: self.btnstate("rp", self.rpcb))
+        l2.addWidget(QLabel("Midi cc:"))
+        self.rpsb = QSpinBox()
+        self.rpsb.setValue(self.rp_ccnum)
+        self.rpsb.valueChanged.connect(lambda: self.spinstate("rp", self.rpsb))
+        l2.addWidget(self.rpsb)
+        l2.addWidget(self.rpcb)
+        self.rpvalLabel = QLabel("0")
+        l2.addWidget(QLabel("Value:"))
+        l2.addWidget(self.rpvalLabel)
+        layout.addLayout(l2)
 
-    def handleFingerConnection(self, con, finger):
-        self.dpr("finger, {}, {}".format(con, finger), l=2)
+        l3 = QHBoxLayout()
+        l3.addWidget(QLabel("Right Yaw"))
+        self.rycb = QCheckBox("Enabled")
+        self.rycb.setChecked(self.ry_enabled)
+        self.rycb.stateChanged.connect(lambda: self.btnstate("ry", self.rycb))
+        l3.addWidget(QLabel("Midi cc:"))
+        self.rysb = QSpinBox()
+        self.rysb.setValue(self.ry_ccnum)
+        self.rysb.valueChanged.connect(lambda: self.spinstate("ry", self.rysb))
+        l3.addWidget(self.rysb)
+        l3.addWidget(self.rycb)
+        self.ryvalLabel = QLabel("0")
+        l3.addWidget(QLabel("Value:"))
+        l3.addWidget(self.ryvalLabel)
+        layout.addLayout(l3)
 
-    def handleLGyroData(self, roll, pitch, yaw, rollChanged, pitchChanged, yawChanged):
-        self.dpr("LG: {} {}, {} {}, {} {}".format(
-            roll, rollChanged, pitch, pitchChanged, yaw, yawChanged), l=3)
+        l4 = QHBoxLayout()
+        l4.addWidget(QLabel("Left Roll"))
+        self.lrcb = QCheckBox("Enabled")
+        self.lrcb.setChecked(self.lr_enabled)
+        self.lrcb.stateChanged.connect(lambda: self.btnstate("lr", self.lrcb))
+        l4.addWidget(QLabel("Midi cc:"))
+        self.lrsb = QSpinBox()
+        self.lrsb.setValue(self.lr_ccnum)
+        self.lrsb.valueChanged.connect(lambda: self.spinstate("lr", self.lrsb))
+        l4.addWidget(self.lrsb)
+        l4.addWidget(self.lrcb)
+        self.lrvalLabel = QLabel("0")
+        l4.addWidget(QLabel("Value:"))
+        l4.addWidget(self.lrvalLabel)
+        layout.addLayout(l4)
 
-    def handleRGyroData(self, roll, pitch, yaw, rollChanged, pitchChanged, yawChanged):
-        self.dpr("RG: {} {}, {} {}, {} {}".format(
-            roll, rollChanged, pitch, pitchChanged, yaw, yawChanged), l=3)
+        l5 = QHBoxLayout()
+        l5.addWidget(QLabel("Left Pitch"))
+        self.lpcb = QCheckBox("Enabled")
+        self.lpcb.setChecked(self.lp_enabled)
+        self.lpcb.stateChanged.connect(lambda: self.btnstate("lp", self.lpcb))
+        l5.addWidget(QLabel("Midi cc:"))
+        self.lpsb = QSpinBox()
+        self.lpsb.setValue(self.lp_ccnum)
+        self.lpsb.valueChanged.connect(lambda: self.spinstate("lp", self.lpsb))
+        l5.addWidget(self.lpsb)
+        l5.addWidget(self.lpcb)
+        self.lpvalLabel = QLabel("0")
+        l5.addWidget(QLabel("Value:"))
+        l5.addWidget(self.lpvalLabel)
+        layout.addLayout(l5)
+
+        l6 = QHBoxLayout()
+        l6.addWidget(QLabel("Left Yaw"))
+        self.lycb = QCheckBox("Enabled")
+        self.lycb.setChecked(self.ly_enabled)
+        self.lycb.stateChanged.connect(lambda: self.btnstate("ly", self.lycb))
+        l6.addWidget(QLabel("Midi cc:"))
+        self.lysb = QSpinBox()
+        self.lysb.setValue(self.ly_ccnum)
+        self.lysb.valueChanged.connect(lambda: self.spinstate("ly", self.lysb))
+        l6.addWidget(self.lysb)
+        l6.addWidget(self.lycb)
+        self.lyvalLabel = QLabel("0")
+        l6.addWidget(QLabel("Value:"))
+        l6.addWidget(self.lyvalLabel)
+        layout.addLayout(l6)
+
+        self.widget.setLayout(layout)
+
+    def btnstate(self, ax, cb):
+        if ax == "rr":
+            self.rr_enabled = cb.isChecked()
+        elif ax == "rp":
+            self.rp_enabled = cb.isChecked()
+        elif ax == "ry":
+            self.ry_enabled = cb.isChecked()
+        elif ax == "lr":
+            self.lr_enabled = cb.isChecked()
+        elif ax == "lp":
+            self.lp_enabled = cb.isChecked()
+        elif ax == "ly":
+            self.ly_enabled = cb.isChecked()
+
+    def spinstate(self, ax, sb):
+        if ax == "rr":
+            self.rr_ccnum = sb.value()
+        elif ax == "rp":
+            self.rp_ccnum = sb.value()
+        elif ax == "ry":
+            self.ry_ccnum = sb.value()
+        elif ax == "lr":
+            self.lr_ccnum = sb.value()
+        elif ax == "lp":
+            self.lp_ccnum = sb.value()
+        elif ax == "ly":
+            self.ly_ccnum = sb.value()
+
+    def rightRollChanged(self, val):
+        self.rrvalLabel.setText(str(int(val*255)))
+        if self.rr_enabled:
+            self.cc(self.rr_ccnum, int(val*255))
+
+    def rightPitchChanged(self, val):
+        self.rpvalLabel.setText(str(int(val*255)))
+        if self.rp_enabled:
+            self.cc(self.rp_ccnum, int(val*255))
+
+    def rightYawChanged(self, val):
+        self.ryvalLabel.setText(str(int(val*255)))
+        if self.ry_enabled:
+            self.cc(self.ry_ccnum, int(val*255))
+
+    def leftRollChanged(self, val):
+        self.lrvalLabel.setText(str(int(val*255)))
+        if self.lr_enabled:
+            self.cc(self.lr_ccnum, int(val*255))
+
+    def leftPitchChanged(self, val):
+        self.lpvalLabel.setText(str(int(val*255)))
+        if self.lp_enabled:
+            self.cc(self.lp_ccnum, int(val*255))
+
+    def leftYawChanged(self, val):
+        self.lyvalLabel.setText(str(int(val*255)))
+        if self.ly_enabled:
+            self.cc(self.ly_ccnum, int(val*255))
 
     def startNote(self, pitch=60, vel=112):
-        self.dpr("starting note {}, {}".format(pitch, vel), l=2)
-        self._midiout.send_message([NOTE_ON, pitch, vel])
+        self.midiport.send_message([NOTE_ON, pitch, vel])
 
     def stopNote(self, pitch=60):
-        self.dpr("stopping note {}".format(pitch), l=2)
-        self._midiout.send_message([NOTE_OFF, pitch, 0])
+        self.midiport.send_message([NOTE_OFF, pitch, 0])
 
     def cc(self, cc=0, value=0):
         if value < 0:
-            self.dpr("Correcting cc value {} to 0".format(value))
+            # print("Correcting cc value {} to 0".format(value))
             value = 0
         if value > 255:
-            self.dpr("Correcting cc value {} to 255".format(value))
+            # print("Correcting cc value {} to 255".format(value))
             value = 255
-        self.dpr("sending cc {}={}".format(cc, value), l=3)
-        self._midiout.send_message([CONTROL_CHANGE, cc, value])
+        self.midiport.send_message([CONTROL_CHANGE, cc, value])
 
     def pb(self, value=8192):
-        self.dpr("sending pb {}".format(value), l=3)
-        self._midiout.send_message([PITCH_BEND, value & 0x7f, (value >> 7) & 0x7f])
-
-
-class M1(BoardToMIDI):
-    """
-    Simplest implementation of Midi mapping
-    R yaw is note
-    R roll is bend
-    R pitch is note velocity and also cc 22
-    L pinch starts and stops
-    All other things are midi cc's
-    22: R pitch
-    23: L yaw
-    24: L roll
-    25: L pitch
-    TODO: Add toggles for other finger connections
-    TODO: Also what are the commonly used ccs like mod wheel and expression pedal use those instead
-    """
-
-    def __init__(self, debug=1):
-        super().__init__(debug=debug)
-        self._noteval = 60
-        self._notevelocity = 64
-        self._currentlyOnNote = None
-
-    def handleFingerConnection(self, con, finger):
-        super().handleFingerConnection(con, finger)
-        if finger == "LIT":
-            if con:
-                nv = self._noteval
-                self.startNote(pitch=nv, vel=self._notevelocity)
-                self._currentlyOnNote = nv
-            else:
-                if self._currentlyOnNote is not None:
-                    self.stopNote(pitch=self._currentlyOnNote)
-                    self._currentlyOnNote = None
-
-    def handleLGyroData(self, roll, pitch, yaw, rollChanged, pitchChanged, yawChanged):
-        super().handleLGyroData(roll, pitch, yaw, rollChanged, pitchChanged, yawChanged)
-        if rollChanged:
-            self.cc(24, int(roll*127))
-        if pitchChanged:
-            self.cc(25, int(pitch*127))
-        if yawChanged:
-            self.cc(23, int(yaw*127))
-
-    def handleRGyroData(self, roll, pitch, yaw, rollChanged, pitchChanged, yawChanged):
-        super().handleRGyroData(roll, pitch, yaw, rollChanged, pitchChanged, yawChanged)
-        if rollChanged:
-            self.pb(int((roll-0.5) * 2.0 * 8192.0 + 8192.0))
-        if pitchChanged:
-            self._notevelocity = int(127 * pitch)
-        if yawChanged:
-            self._noteval = self.getNoteValForYaw(yaw)
-
-    def getNoteValForYaw(self, yaw):
-        return int(yaw * 127)
-
-
-if __name__ == "__main__":
-    btm = M1(debug=3)
-    btm.run()
+        self.midiport.send_message([PITCH_BEND, value & 0x7f, (value >> 7) & 0x7f])

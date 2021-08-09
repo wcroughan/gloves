@@ -36,7 +36,7 @@ const int pin_HRL = 9; //pwm
 const int pin_HRM = 10; //pwm
 const int pin_HRR = 11; //pwm
 
-#define OUTPUT_FORMAT 0
+#define OUTPUT_FORMAT 1
 
 int16_t read_vals[8];
 
@@ -115,12 +115,22 @@ void setup() {
 
 void loop() {
     // if programming failed, don't try to do anything
-    if (!dmpReady) return;
+    if (!dmpReady) {
+#if OUTPUT_FORMAT == 1
+        Serial.println("DMP not ready");
+#endif
+        return;
+    }
     // read a packet from FIFO
+    Serial.print(".");
     if (mpu.dmpGetCurrentFIFOPacket(fifoBuffer)) { // Get the Latest packet 
+            Serial.print(".");
             mpu.dmpGetQuaternion(&q, fifoBuffer);
+            Serial.print(".");
             mpu.dmpGetGravity(&gravity, &q);
+            Serial.print(".");
             mpu.dmpGetYawPitchRoll(ypr, &q, &gravity);
+            Serial.print(".");
 
 #if OUTPUT_FORMAT == 0
             Serial.write((byte*)ypr, 12);
@@ -134,7 +144,24 @@ void loop() {
             Serial.print("\t");
             Serial.print(ypr[1] * 180/M_PI);
             Serial.print("\t");
-            Serial.println(ypr[2] * 180/M_PI);
+            Serial.print(ypr[2] * 180/M_PI);
+            Serial.print("\t");
+
+            Serial.print("q:\t");
+            Serial.print(q.w);
+            Serial.print("\t");
+            Serial.print(q.x);
+            Serial.print("\t");
+            Serial.print(q.y);
+            Serial.print("\t");
+            Serial.print(q.z);
+            Serial.print("\t");
+
+            Serial.println();
+#endif
+    } else {
+#if OUTPUT_FORMAT == 1
+        Serial.println("Didn't get info packet from fifo");
 #endif
     }
 

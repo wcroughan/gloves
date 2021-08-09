@@ -1,28 +1,23 @@
 import sys
-from PyQt5.QtWidgets import QWidget, QApplication, QVBoxLayout, QHBoxLayout, QLabel, QCheckBox, QSpinBox, QSlider, QPushButton
+from PyQt5.QtWidgets import QWidget, QApplication, QVBoxLayout, QHBoxLayout, QLabel, QCheckBox, QSpinBox, QSlider, QPushButton, QComboBox
 from PyQt5.QtCore import Qt, QTimer
 from rtmidi.midiutil import open_midioutput
-from rtmidi.midiconstants import NOTE_OFF, NOTE_ON, CONTROL_CHANGE, PITCH_BEND
 from pubsub import pub
 import time
 import numpy as np
 
 from BoardInteraction import BoardInteractor
+from FakeBoard import FakeBoard
+import ThreadExtension
+from MIDI import M1
 
 
 class ConfigWindow(QWidget):
     """
     """
 
-    def __init__(self):
+    def __init__(self, useFakeBoard=False):
         QWidget.__init__(self)
-
-        self.rr_ccnum = 22
-        self.rp_ccnum = 23
-        self.ry_ccnum = 24
-        self.rr_enabled = True
-        self.rp_enabled = True
-        self.ry_enabled = True
 
         # value is the minimum delay in milliseconds between cc sends
         self.throttleLevels = [0, 33, 200, 1000]
@@ -30,14 +25,19 @@ class ConfigWindow(QWidget):
         self.throttleLevel = 0
 
         self.midiout = None
+        self.midiHandler = None
 
         self.last_rgyro_time = 0
         self.last_lgyro_time = 0
         self.rrcint = False
         self.rpcint = False
         self.rycint = False
+        self.lrcint = False
+        self.lpcint = False
+        self.lycint = False
 
         self.board = None
+        self.useFakeBoard = useFakeBoard
         self.isStreaming = False
 
         self.rrcenter = 0.5
@@ -49,65 +49,86 @@ class ConfigWindow(QWidget):
         self.rpmaxval = 1.0
         self.ryminval = 0.0
         self.rymaxval = 1.0
-        self.calibActiveRoll = False
-        self.calibActivePitch = False
-        self.calibActiveYaw = False
+        self.lrcenter = 0.5
+        self.lpcenter = 0.5
+        self.lycenter = 0.5
+        self.lrminval = 0.0
+        self.lrmaxval = 1.0
+        self.lpminval = 0.0
+        self.lpmaxval = 1.0
+        self.lyminval = 0.0
+        self.lymaxval = 1.0
+        self.calibActiveRollRight = False
+        self.calibActivePitchRight = False
+        self.calibActiveYawRight = False
+        self.calibActiveRollLeft = False
+        self.calibActivePitchLeft = False
+        self.calibActiveYawLeft = False
+
+        self.midiHandlerOptions = ["None", "M1"]
 
         self.initUI()
         self.initBoardComs()
         self.initMIDI()
 
+        self.midiHandlerComboBox.currentIndexChanged.emit(0)
+
     def initUI(self):
         self.setWindowTitle("MIDI Glove Config")
 
         layout = QVBoxLayout()
-        l1 = QHBoxLayout()
-        l1.addWidget(QLabel("Right Roll"))
-        self.rrcb = QCheckBox("Enabled")
-        self.rrcb.setChecked(self.rr_enabled)
-        self.rrcb.stateChanged.connect(lambda: self.btnstate("rr", self.rrcb))
-        l1.addWidget(QLabel("Midi cc:"))
-        self.rrsb = QSpinBox()
-        self.rrsb.setValue(self.rr_ccnum)
-        self.rrsb.valueChanged.connect(lambda: self.spinstate("rr", self.rrsb))
-        l1.addWidget(self.rrsb)
-        l1.addWidget(self.rrcb)
-        self.rrvalLabel = QLabel("0")
-        l1.addWidget(QLabel("Value:"))
-        l1.addWidget(self.rrvalLabel)
-        layout.addLayout(l1)
+        l5 = QHBoxLayout()
+        self.midiHandlerComboBox = QComboBox()
+        self.midiHandlerComboBox.addItems(self.midiHandlerOptions)
+        self.midiHandlerComboBox.currentIndexChanged.connect(self.midiHandlerSelected)
+        l5.addWidget(self.midiHandlerComboBox)
 
-        l2 = QHBoxLayout()
-        l2.addWidget(QLabel("Right Pitch"))
-        self.rpcb = QCheckBox("Enabled")
-        self.rpcb.setChecked(self.rp_enabled)
-        self.rpcb.stateChanged.connect(lambda: self.btnstate("rp", self.rpcb))
-        l2.addWidget(QLabel("Midi cc:"))
-        self.rpsb = QSpinBox()
-        self.rpsb.setValue(self.rp_ccnum)
-        self.rpsb.valueChanged.connect(lambda: self.spinstate("rp", self.rpsb))
-        l2.addWidget(self.rpsb)
-        l2.addWidget(self.rpcb)
-        self.rpvalLabel = QLabel("0")
-        l2.addWidget(QLabel("Value:"))
-        l2.addWidget(self.rpvalLabel)
-        layout.addLayout(l2)
+        self.streamButton = QPushButton("Stream")
+        self.streamButton.clicked.connect(self.streambtn)
+        l5.addWidget(self.streamButton)
+        layout.addLayout(l5)
 
-        l3 = QHBoxLayout()
-        l3.addWidget(QLabel("Right Yaw"))
-        self.rycb = QCheckBox("Enabled")
-        self.rycb.setChecked(self.ry_enabled)
-        self.rycb.stateChanged.connect(lambda: self.btnstate("ry", self.rycb))
-        l3.addWidget(QLabel("Midi cc:"))
-        self.rysb = QSpinBox()
-        self.rysb.setValue(self.ry_ccnum)
-        self.rysb.valueChanged.connect(lambda: self.spinstate("ry", self.rysb))
-        l3.addWidget(self.rysb)
-        l3.addWidget(self.rycb)
-        self.ryvalLabel = QLabel("0")
-        l3.addWidget(QLabel("Value:"))
-        l3.addWidget(self.ryvalLabel)
-        layout.addLayout(l3)
+        l6 = QHBoxLayout()
+        l6.addWidget(QLabel("Left"))
+        centerButton = QPushButton("Set Center")
+        centerButton.clicked.connect(lambda: self.centerbtn(3, "L"))
+        l6.addWidget(centerButton)
+        centerYawButton = QPushButton("Center Yaw")
+        centerYawButton.clicked.connect(lambda: self.centerYaw("L"))
+        l6.addWidget(centerYawButton)
+        calibRollButton = QPushButton("Calibrate Roll")
+        calibRollButton.clicked.connect(lambda: self.calibrollbtn("L"))
+        l6.addWidget(calibRollButton)
+        calibPitchButton = QPushButton("Calibrate Pitch")
+        calibPitchButton.clicked.connect(lambda: self.calibpitchbtn("L"))
+        l6.addWidget(calibPitchButton)
+        calibYawButton = QPushButton("Calibrate Yaw")
+        calibYawButton.clicked.connect(lambda: self.calibyawbtn("L"))
+        l6.addWidget(calibYawButton)
+        self.calibLabel_l = QLabel("")
+        l6.addWidget(self.calibLabel_l)
+        layout.addLayout(l6)
+
+        l6 = QHBoxLayout()
+        l6.addWidget(QLabel("Right"))
+        centerButton = QPushButton("Set Center")
+        centerButton.clicked.connect(lambda: self.centerbtn(3, "R"))
+        l6.addWidget(centerButton)
+        centerYawButton = QPushButton("Center Yaw")
+        centerYawButton.clicked.connect(lambda: self.centerYaw("R"))
+        l6.addWidget(centerYawButton)
+        calibRollButton = QPushButton("Calibrate Roll")
+        calibRollButton.clicked.connect(lambda: self.calibrollbtn("R"))
+        l6.addWidget(calibRollButton)
+        calibPitchButton = QPushButton("Calibrate Pitch")
+        calibPitchButton.clicked.connect(lambda: self.calibpitchbtn("R"))
+        l6.addWidget(calibPitchButton)
+        calibYawButton = QPushButton("Calibrate Yaw")
+        calibYawButton.clicked.connect(lambda: self.calibyawbtn("R"))
+        l6.addWidget(calibYawButton)
+        self.calibLabel_r = QLabel("")
+        l6.addWidget(self.calibLabel_r)
+        layout.addLayout(l6)
 
         l4 = QHBoxLayout()
         self.throttleLabel = QLabel(self.throttleLabels[0])
@@ -116,117 +137,152 @@ class ConfigWindow(QWidget):
         self.throttleSlider.setMaximum(3)
         self.throttleSlider.setSingleStep(1)
         self.throttleSlider.valueChanged.connect(lambda: self.throttlestate(self.throttleSlider))
+        l4.addWidget(QLabel("Throttle MIDI: "))
         l4.addWidget(self.throttleLabel)
         l4.addWidget(self.throttleSlider)
         layout.addLayout(l4)
 
-        l5 = QHBoxLayout()
-        self.streamButton = QPushButton("Stream")
-        self.streamButton.clicked.connect(self.streambtn)
-        l5.addWidget(self.streamButton)
-        layout.addLayout(l5)
-
-        l6 = QHBoxLayout()
-        self.centerButton = QPushButton("Set Center")
-        self.centerButton.clicked.connect(lambda: self.centerbtn(3))
-        l6.addWidget(self.centerButton)
-        self.centerYawButton = QPushButton("Center Yaw")
-        self.centerYawButton.clicked.connect(lambda: self.centerYaw())
-        l6.addWidget(self.centerYawButton)
-        self.calibRollButton = QPushButton("Calibrate Roll")
-        self.calibRollButton.clicked.connect(self.calibrollbtn)
-        l6.addWidget(self.calibRollButton)
-        self.calibPitchButton = QPushButton("Calibrate Pitch")
-        self.calibPitchButton.clicked.connect(self.calibpitchbtn)
-        l6.addWidget(self.calibPitchButton)
-        self.calibYawButton = QPushButton("Calibrate Yaw")
-        self.calibYawButton.clicked.connect(self.calibyawbtn)
-        l6.addWidget(self.calibYawButton)
-        self.calibLabel = QLabel("")
-        l6.addWidget(self.calibLabel)
-        layout.addLayout(l6)
+        self.handlerWidgetContainer = QHBoxLayout()
+        self.handlerWidget = QLabel("None")
+        self.handlerWidgetContainer.addWidget(self.handlerWidget)
+        layout.addLayout(self.handlerWidgetContainer)
 
         self.setLayout(layout)
+
+    def midiHandlerSelected(self, idx):
+        handler = self.midiHandlerOptions[idx]
+
+        if handler == "M1":
+            self.midiHandler = M1(self.midiout)
+        elif handler == "None":
+            self.midiHandler = None
+            self.handlerWidgetContainer.removeWidget(self.handlerWidget)
+            self.handlerWidget.deleteLater()
+            self.handlerWidget = QLabel("None")
+            self.handlerWidgetContainer.addWidget(self.handlerWidget)
+            return
+        else:
+            print("unimplemented handler")
+            return
+
+        self.handlerWidgetContainer.removeWidget(self.handlerWidget)
+        self.handlerWidget.deleteLater()
+        self.handlerWidget = self.midiHandler.widget
+        self.handlerWidgetContainer.addWidget(self.handlerWidget)
 
     def streambtn(self):
         if self.isStreaming:
             self.isStreaming = False
-            self.board.stop()
+            if self.useFakeBoard:
+                self.board.close()
+            else:
+                self.board.stop()
             self.board = None
             self.streamButton.setText("Stream")
         else:
             self.isStreaming = True
-            self.board = BoardInteractor()
-            self.board.start()
+            if self.useFakeBoard:
+                self.board = FakeBoard()
+                self.board.show()
+            else:
+                self.board = BoardInteractor()
+                self.board.start()
             self.streamButton.setText("Stop Streaming")
-
-    def btnstate(self, ax, cb):
-        if ax == "rr":
-            self.rr_enabled = cb.isChecked()
-        elif ax == "rp":
-            self.rp_enabled = cb.isChecked()
-        elif ax == "ry":
-            self.ry_enabled = cb.isChecked()
-
-    def spinstate(self, ax, sb):
-        if ax == "rr":
-            self.rr_ccnum = sb.value()
-        elif ax == "rp":
-            self.rp_ccnum = sb.value()
-        elif ax == "ry":
-            self.ry_ccnum = sb.value()
 
     def throttlestate(self, sld):
         self.throttleLabel.setText(self.throttleLabels[sld.value()])
         self.throttleLevel = self.throttleLevels[sld.value()]
 
-    def centerbtn(self, timeleft):
+    def centerbtn(self, timeleft, side):
         if timeleft > 0:
-            self.calibLabel.setText(str(timeleft))
-            QTimer.singleShot(1000, lambda: self.centerbtn(timeleft-1))
+            if side == "L":
+                self.calibLabel_l.setText(str(timeleft))
+            else:
+                self.calibLabel_r.setText(str(timeleft))
+            QTimer.singleShot(1000, lambda: self.centerbtn(timeleft-1, side))
             return
 
-        self.calibLabel.setText("")
+        if side == "L":
+            self.calibLabel_l.setText("")
+            self.lrcenter = self.lrval_raw
+            self.lpcenter = self.lpval_raw
+            self.lycenter = self.lyval_raw
+        else:
+            self.calibLabel_r.setText("")
+            self.rrcenter = self.rrval_raw
+            self.rpcenter = self.rpval_raw
+            self.rycenter = self.ryval_raw
 
-        self.rrcenter = self.rrval_raw
-        self.rpcenter = self.rpval_raw
-        self.rycenter = self.ryval_raw
+    def centerYaw(self, side):
+        if side == "L":
+            self.lycenter = self.lyval_raw
+        else:
+            self.rycenter = self.ryval_raw
 
-    def centerYaw(self):
-        self.rycenter = self.ryval_raw
+    def calibrollbtn(self, side):
+        if side == "L":
+            self.lrminval = self.lrval - 0.01
+            self.lrmaxval = self.lrval - 0.01
+            self.calibLabel_l.setText("Roll calibrating...")
+            self.calibActiveRollLeft = True
+        else:
+            self.rrminval = self.rrval - 0.01
+            self.rrmaxval = self.rrval - 0.01
+            self.calibLabel_r.setText("Roll calibrating...")
+            self.calibActiveRollRight = True
 
-    def calibrollbtn(self):
-        self.rrminval = self.rrval - 0.01
-        self.rrmaxval = self.rrval - 0.01
-        self.calibLabel.setText("Roll calibrating...")
-        self.calibActiveRoll = True
-        QTimer.singleShot(3000, self.calibrollfinish)
+        QTimer.singleShot(3000, lambda: self.calibrollfinish(side))
 
-    def calibrollfinish(self):
-        self.calibActiveRoll = False
-        self.calibLabel.setText("")
+    def calibrollfinish(self, side):
+        if side == "L":
+            self.calibActiveRollLeft = False
+            self.calibLabel_l.setText("")
+        else:
+            self.calibActiveRollRight = False
+            self.calibLabel_r.setText("")
 
-    def calibpitchbtn(self):
-        self.rpminval = self.rpval - 0.01
-        self.rpmaxval = self.rpval - 0.01
-        self.calibLabel.setText("Pitch calibrating...")
-        self.calibActivePitch = True
-        QTimer.singleShot(3000, self.calibpitchfinish)
+    def calibpitchbtn(self, side):
+        if side == "L":
+            self.lpminval = self.lpval - 0.01
+            self.lpmaxval = self.lpval - 0.01
+            self.calibLabel_l.setText("Pitch calibrating...")
+            self.calibActivePitchLeft = True
+        else:
+            self.rpminval = self.rpval - 0.01
+            self.rpmaxval = self.rpval - 0.01
+            self.calibLabel_r.setText("Pitch calibrating...")
+            self.calibActivePitchRight = True
 
-    def calibpitchfinish(self):
-        self.calibActivePitch = False
-        self.calibLabel.setText("")
+        QTimer.singleShot(3000, lambda: self.calibpitchfinish(side))
 
-    def calibyawbtn(self):
-        self.ryminval = self.ryval - 0.01
-        self.rymaxval = self.ryval - 0.01
-        self.calibLabel.setText("Yaw calibrating...")
-        self.calibActiveYaw = True
-        QTimer.singleShot(3000, self.calibyawfinish)
+    def calibpitchfinish(self, side):
+        if side == "L":
+            self.calibActivePitchLeft = False
+            self.calibLabel_l.setText("")
+        else:
+            self.calibActivePitchRight = False
+            self.calibLabel_r.setText("")
 
-    def calibyawfinish(self):
-        self.calibActiveYaw = False
-        self.calibLabel.setText("")
+    def calibyawbtn(self, side):
+        if side == "L":
+            self.ryminval = self.ryval - 0.01
+            self.rymaxval = self.ryval - 0.01
+            self.calibLabel_r.setText("Yaw calibrating...")
+            self.calibActiveYawLeft = True
+        else:
+            self.lyminval = self.lyval - 0.01
+            self.lymaxval = self.lyval - 0.01
+            self.calibLabel_l.setText("Yaw calibrating...")
+            self.calibActiveYawRight = True
+        QTimer.singleShot(3000, lambda: self.calibyawfinish(side))
+
+    def calibyawfinish(self, side):
+        if side == "L":
+            self.calibActiveYawLeft = False
+            self.calibLabel_l.setText("")
+        else:
+            self.calibActiveYawRight = False
+            self.calibLabel_r.setText("")
 
     def initBoardComs(self):
         pub.subscribe(self.handleFingerConnection, 'FingerConnection')
@@ -237,17 +293,62 @@ class ConfigWindow(QWidget):
         self.midiout, self.midiportname = open_midioutput()
 
     def handleFingerConnection(self, con, finger):
-        if self.midiout is None:
-            return
+        pass
 
     def handleLGyroData(self, roll, pitch, yaw, rollChanged, pitchChanged, yawChanged):
-        if self.midiout is None:
+        self.lrval_raw = roll
+        self.lpval_raw = pitch
+        self.lyval_raw = yaw
+        self.lrval = roll - self.lrcenter + 0.5
+        if self.lrval > 1.0:
+            self.lrval -= 1.0
+        self.lpval = pitch - self.lpcenter + 0.5
+        if self.lpval > 1.0:
+            self.lpval -= 1.0
+        self.lyval = yaw - self.lycenter + 0.5
+        if self.lyval > 1.0:
+            self.lyval -= 1.0
+
+        if self.calibActiveRollLeft:
+            self.lrminval = min(self.lrminval, self.lrval)
+            self.lrmaxval = max(self.lrmaxval, self.lrval)
+        else:
+            self.lrval = np.interp(self.lrval, [self.lrminval, 0.5, self.lrmaxval], [0.0, 0.5, 1.0])
+        if self.calibActivePitchLeft:
+            self.lpminval = min(self.lpminval, self.lpval)
+            self.lpmaxval = max(self.lpmaxval, self.lpval)
+        else:
+            self.lpval = np.interp(self.lpval, [self.lpminval, 0.5, self.lpmaxval], [0.0, 0.5, 1.0])
+        if self.calibActiveYawLeft:
+            self.lyminval = min(self.lyminval, self.lyval)
+            self.lymaxval = max(self.lymaxval, self.lyval)
+        else:
+            self.lyval = np.interp(self.lyval, [self.lyminval, 0.5, self.lymaxval], [0.0, 0.5, 1.0])
+
+        if time.time() * 1000 - self.last_lgyro_time < self.throttleLevel:
+            self.lrcint = self.lrcint or rollChanged
+            self.lpcint = self.lpcint or pitchChanged
+            self.lycint = self.lycint or yawChanged
+            # print("Throttling")
             return
+
+        if rollChanged:
+            if self.midiHandler is not None:
+                self.midiHandler.leftRollChanged(self.lrval)
+        if pitchChanged:
+            if self.midiHandler is not None:
+                self.midiHandler.leftPitchChanged(self.lpval)
+        if yawChanged:
+            if self.midiHandler is not None:
+                self.midiHandler.leftYawChanged(self.lyval)
+
+        self.last_lgyro_time = time.time() * 1000
+        self.lrcint = False
+        self.lpcint = False
+        self.lycint = False
 
     def handleRGyroData(self, roll, pitch, yaw, rollChanged, pitchChanged, yawChanged):
-        if self.midiout is None:
-            return
-
+        # print("RGYRO received:", roll, pitch, yaw)
         self.rrval_raw = roll
         self.rpval_raw = pitch
         self.ryval_raw = yaw
@@ -261,17 +362,17 @@ class ConfigWindow(QWidget):
         if self.ryval > 1.0:
             self.ryval -= 1.0
 
-        if self.calibActiveRoll:
+        if self.calibActiveRollRight:
             self.rrminval = min(self.rrminval, self.rrval)
             self.rrmaxval = max(self.rrmaxval, self.rrval)
         else:
             self.rrval = np.interp(self.rrval, [self.rrminval, 0.5, self.rrmaxval], [0.0, 0.5, 1.0])
-        if self.calibActivePitch:
+        if self.calibActivePitchRight:
             self.rpminval = min(self.rpminval, self.rpval)
             self.rpmaxval = max(self.rpmaxval, self.rpval)
         else:
             self.rpval = np.interp(self.rpval, [self.rpminval, 0.5, self.rpmaxval], [0.0, 0.5, 1.0])
-        if self.calibActiveYaw:
+        if self.calibActiveYawRight:
             self.ryminval = min(self.ryminval, self.ryval)
             self.rymaxval = max(self.rymaxval, self.ryval)
         else:
@@ -285,45 +386,24 @@ class ConfigWindow(QWidget):
             return
 
         if rollChanged:
-            self.rrvalLabel.setText(str(int(self.rrval*255)))
-            if self.rr_enabled:
-                self.cc(self.rr_ccnum, int(self.rrval*255))
+            if self.midiHandler is not None:
+                self.midiHandler.rightRollChanged(self.rrval)
         if pitchChanged:
-            self.rpvalLabel.setText(str(int(self.rpval*255)))
-            if self.rp_enabled:
-                self.cc(self.rp_ccnum, int(self.rpval*255))
+            if self.midiHandler is not None:
+                self.midiHandler.rightPitchChanged(self.rpval)
         if yawChanged:
-            self.ryvalLabel.setText(str(int(self.ryval*255)))
-            if self.ry_enabled:
-                self.cc(self.ry_ccnum, int(self.ryval*255))
+            if self.midiHandler is not None:
+                self.midiHandler.rightYawChanged(self.ryval)
 
         self.last_rgyro_time = time.time() * 1000
         self.rrcint = False
         self.rpcint = False
         self.rycint = False
 
-    def startNote(self, pitch=60, vel=112):
-        self.midiout.send_message([NOTE_ON, pitch, vel])
-
-    def stopNote(self, pitch=60):
-        self.midiout.send_message([NOTE_OFF, pitch, 0])
-
-    def cc(self, cc=0, value=0):
-        if value < 0:
-            # print("Correcting cc value {} to 0".format(value))
-            value = 0
-        if value > 255:
-            # print("Correcting cc value {} to 255".format(value))
-            value = 255
-        self.midiout.send_message([CONTROL_CHANGE, cc, value])
-
-    def pb(self, value=8192):
-        self.midiout.send_message([PITCH_BEND, value & 0x7f, (value >> 7) & 0x7f])
-
 
 def main():
     parent_app = QApplication(sys.argv)
-    configWindow = ConfigWindow()
+    configWindow = ConfigWindow(useFakeBoard=True)
     configWindow.show()
     sys.exit(parent_app.exec_())
 
