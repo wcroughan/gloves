@@ -202,6 +202,9 @@ class BoardInteractor(ThreadExtension.StoppableThread):
         while self._board.in_waiting >= 16:
             dat = self._board.read(16)
         vals = struct.unpack('4f', dat)
+        valtest = struct.unpack('fffbbbb', dat)
+        if not (valtest[-1] == 0 and valtest[-2] == 1 and valtest[-3] == 2 and valtest[-4] == 3):
+          print(valtest)
         vals = np.array(vals) - self.offsets
         # print(vals)
         p = 3.1415926
