@@ -1,5 +1,4 @@
-from PyQt5.QtWidgets import QWidget, QApplication, QVBoxLayout, QHBoxLayout, QLabel, QCheckBox, QSpinBox, QSlider, QPushButton
-from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QCheckBox, QSpinBox, QComboBox
 from rtmidi.midiconstants import NOTE_OFF, NOTE_ON, CONTROL_CHANGE, PITCH_BEND
 
 
@@ -39,9 +38,9 @@ class MIDIMapping:
         if value < 0:
             # print("Correcting cc value {} to 0".format(value))
             value = 0
-        if value > 255:
-            # print("Correcting cc value {} to 255".format(value))
-            value = 255
+        if value > 127:
+            # print("Correcting cc value {} to 127".format(value))
+            value = 127
         self.midiport.send_message([CONTROL_CHANGE, cc, value])
 
     def pb(self, value=8192):
@@ -198,34 +197,34 @@ class M1(MIDIMapping):
             self.ly_ccnum = sb.value()
 
     def rightRollChanged(self, val):
-        self.rrvalLabel.setText(str(int(val*255)))
+        self.rrvalLabel.setText(str(int(val*127)))
         if self.rr_enabled:
-            self.cc(self.rr_ccnum, int(val*255))
+            self.cc(self.rr_ccnum, int(val*127))
 
     def rightPitchChanged(self, val):
-        self.rpvalLabel.setText(str(int(val*255)))
+        self.rpvalLabel.setText(str(int(val*127)))
         if self.rp_enabled:
-            self.cc(self.rp_ccnum, int(val*255))
+            self.cc(self.rp_ccnum, int(val*127))
 
     def rightYawChanged(self, val):
-        self.ryvalLabel.setText(str(int(val*255)))
+        self.ryvalLabel.setText(str(int(val*127)))
         if self.ry_enabled:
-            self.cc(self.ry_ccnum, int(val*255))
+            self.cc(self.ry_ccnum, int(val*127))
 
     def leftRollChanged(self, val):
-        self.lrvalLabel.setText(str(int(val*255)))
+        self.lrvalLabel.setText(str(int(val*127)))
         if self.lr_enabled:
-            self.cc(self.lr_ccnum, int(val*255))
+            self.cc(self.lr_ccnum, int(val*127))
 
     def leftPitchChanged(self, val):
-        self.lpvalLabel.setText(str(int(val*255)))
+        self.lpvalLabel.setText(str(int(val*127)))
         if self.lp_enabled:
-            self.cc(self.lp_ccnum, int(val*255))
+            self.cc(self.lp_ccnum, int(val*127))
 
     def leftYawChanged(self, val):
-        self.lyvalLabel.setText(str(int(val*255)))
+        self.lyvalLabel.setText(str(int(val*127)))
         if self.ly_enabled:
-            self.cc(self.ly_ccnum, int(val*255))
+            self.cc(self.ly_ccnum, int(val*127))
 
 
 class ToyMidiMap(MIDIMapping):
@@ -254,6 +253,22 @@ class ToyMidiMap(MIDIMapping):
 
     def initWidget(self):
         layout = QVBoxLayout()
+
+        lh = QHBoxLayout()
+        lh.addWidget(QLabel("Root note:"))
+        rns = QSpinBox()
+        rns.setMaximum(127)
+        rns.setValue(self.rootNote)
+        rns.valueChanged.connect(self.setRootNote)
+        lh.addWidget(rns)
+        self.rootNoteNameLabel = QLabel(self.noteNameForVal(self.rootNote))
+        lh.addWidget(self.rootNoteNameLabel)
+        lh.addWidget(QLabel("Scale:"))
+        scb = QComboBox()
+        scb.addItems(self.SCALE_MODES)
+        scb.currentIndexChanged.connect(self.setScaleMode)
+        lh.addWidget(scb)
+        layout.addLayout(lh)
 
         l1 = QHBoxLayout()
         l1.addWidget(QLabel("Right Roll"))
@@ -335,8 +350,17 @@ class ToyMidiMap(MIDIMapping):
 
         self.widget.setLayout(layout)
 
+    def noteNameForVal(self, val):
+        noteNames = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+        q, r = divmod(val, 12)
+        n1 = noteNames[r]
+        n2 = q - 2
+        ret = str(n1) + str(n2)
+        return ret
+
     def setRootNote(self, val):
         self.rootNote = val
+        self.rootNoteNameLabel.setText(self.noteNameForVal(val))
 
     def setScaleMode(self, idx):
         self.scale_mode = self.SCALE_MODES[idx]
@@ -392,32 +416,32 @@ class ToyMidiMap(MIDIMapping):
         return self.rootNote + self.scaleOffsets[idx]
 
     def rightRollChanged(self, val):
-        self.rrvalLabel.setText(str(int(val*255)))
+        self.rrvalLabel.setText(str(int(val*127)))
         if self.rr_enabled:
-            self.cc(self.rr_ccnum, int(val*255))
+            self.cc(self.rr_ccnum, int(val*127))
 
     def rightPitchChanged(self, val):
-        self.rpvalLabel.setText(str(int(val*255)))
-        self.rightNoteVelocity = int(val*255)
+        self.rpvalLabel.setText(str(int(val*127)))
+        self.rightNoteVelocity = int(val*127)
 
     def rightYawChanged(self, val):
-        self.ryvalLabel.setText(str(int(val*255)))
+        self.ryvalLabel.setText(str(int(val*127)))
         if self.ry_enabled:
-            self.cc(self.ry_ccnum, int(val*255))
+            self.cc(self.ry_ccnum, int(val*127))
 
     def leftRollChanged(self, val):
-        self.lrvalLabel.setText(str(int(val*255)))
+        self.lrvalLabel.setText(str(int(val*127)))
         if self.lr_enabled:
-            self.cc(self.lr_ccnum, int(val*255))
+            self.cc(self.lr_ccnum, int(val*127))
 
     def leftPitchChanged(self, val):
-        self.lpvalLabel.setText(str(int(val*255)))
-        self.leftNoteVelocity = int(val*255)
+        self.lpvalLabel.setText(str(int(val*127)))
+        self.leftNoteVelocity = int(val*127)
 
     def leftYawChanged(self, val):
-        self.lyvalLabel.setText(str(int(val*255)))
+        self.lyvalLabel.setText(str(int(val*127)))
         if self.ly_enabled:
-            self.cc(self.ly_ccnum, int(val*255))
+            self.cc(self.ly_ccnum, int(val*127))
 
     def btnstate(self, ax, cb):
         if ax == "rr":

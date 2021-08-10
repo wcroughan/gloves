@@ -9,7 +9,7 @@ import numpy as np
 from BoardInteraction import BoardInteractor
 from FakeBoard import FakeBoard
 import ThreadExtension
-from MIDI import M1
+from MIDI import M1, ToyMidiMap
 
 
 class ConfigWindow(QWidget):
@@ -65,7 +65,9 @@ class ConfigWindow(QWidget):
         self.calibActivePitchLeft = False
         self.calibActiveYawLeft = False
 
-        self.midiHandlerOptions = ["None", "M1"]
+        self.midiHandlerOptions = ["None",
+                                   "M1",
+                                   "ToyMidiMap"]
 
         self.initUI()
         self.initBoardComs()
@@ -154,6 +156,8 @@ class ConfigWindow(QWidget):
 
         if handler == "M1":
             self.midiHandler = M1(self.midiout)
+        elif handler == "ToyMidiMap":
+            self.midiHandler = ToyMidiMap(self.midiout)
         elif handler == "None":
             self.midiHandler = None
             self.handlerWidgetContainer.removeWidget(self.handlerWidget)
