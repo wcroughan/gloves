@@ -6,8 +6,8 @@ from pubsub import pub
 import time
 import numpy as np
 
-from BoardInteraction import BoardInteractor
 from FakeBoard import FakeBoard
+from RealBoard import RealBoard
 import ThreadExtension
 from MIDI import M1, ToyMidiMap
 
@@ -16,7 +16,7 @@ class ConfigWindow(QWidget):
     """
     """
 
-    def __init__(self, useFakeBoard=False):
+    def __init__(self):
         QWidget.__init__(self)
 
         # value is the minimum delay in milliseconds between cc sends
@@ -37,8 +37,6 @@ class ConfigWindow(QWidget):
         self.lycint = False
 
         self.board = None
-        self.useFakeBoard = useFakeBoard
-        self.isStreaming = False
 
         self.rrcenter = 0.5
         self.rpcenter = 0.5
@@ -69,6 +67,10 @@ class ConfigWindow(QWidget):
                                    "M1",
                                    "ToyMidiMap"]
 
+        self.inputOptions = ["None",
+                             "Fake input",
+                             "Arduino"]
+
         self.initUI()
         self.initBoardComs()
         self.initMIDI()
@@ -80,16 +82,22 @@ class ConfigWindow(QWidget):
 
         layout = QVBoxLayout()
         l5 = QHBoxLayout()
+        l5.addWidget(QLabel("Output:"))
         self.midiHandlerComboBox = QComboBox()
         self.midiHandlerComboBox.addItems(self.midiHandlerOptions)
         self.midiHandlerComboBox.currentIndexChanged.connect(self.midiHandlerSelected)
         l5.addWidget(self.midiHandlerComboBox)
-
-        self.streamButton = QPushButton("Stream")
-        self.streamButton.clicked.connect(self.streambtn)
-        l5.addWidget(self.streamButton)
         layout.addLayout(l5)
 
+        l7 = QHBoxLayout()
+        l7.addWidget(QLabel("Input:"))
+        self.inputComboBox = QComboBox()
+        self.inputComboBox.addItems(self.inputOptions)
+        self.inputComboBox.currentIndexChanged.connect(self.inputSelected)
+        l7.addWidget(self.inputComboBox)
+        layout.addLayout(l7)
+
+        # TODO this logic should all be in the RealBoard class
         l6 = QHBoxLayout()
         l6.addWidget(QLabel("Left"))
         centerButton = QPushButton("Set Center")
@@ -149,6 +157,11 @@ class ConfigWindow(QWidget):
         self.handlerWidgetContainer.addWidget(self.handlerWidget)
         layout.addLayout(self.handlerWidgetContainer)
 
+        self.inputWidgetContainer = QHBoxLayout()
+        self.inputWidget = QLabel("No input")
+        self.inputWidgetContainer.addWidget(self.inputWidget)
+        layout.addLayout(self.inputWidgetContainer)
+
         self.setLayout(layout)
 
     def midiHandlerSelected(self, idx):
@@ -174,24 +187,24 @@ class ConfigWindow(QWidget):
         self.handlerWidget = self.midiHandler.widget
         self.handlerWidgetContainer.addWidget(self.handlerWidget)
 
-    def streambtn(self):
-        if self.isStreaming:
-            self.isStreaming = False
-            if self.useFakeBoard:
-                self.board.close()
-            else:
-                self.board.stop()
-            self.board = None
-            self.streamButton.setText("Stream")
+    def inputSelected(self, idx):
+        inp = self.inputOptions[idx]
+
+        self.inputWidgetContainer.removeWidget(self.inputWidget)
+        self.inputWidget.close()
+        self.inputWidget.deleteLater()
+
+        if inp == "None":
+            self.inputWidget = QLabel("No Input")
+        elif inp == "Arduino":
+            self.inputWidget = RealBoard()
+        elif inp == "Fake input":
+            self.inputWidget = FakeBoard()
         else:
-            self.isStreaming = True
-            if self.useFakeBoard:
-                self.board = FakeBoard()
-                self.board.show()
-            else:
-                self.board = BoardInteractor()
-                self.board.start()
-            self.streamButton.setText("Stop Streaming")
+            print("Unimplemented input")
+            return
+
+        self.inputWidgetContainer.addWidget(self.inputWidget)
 
     def throttlestate(self, sld):
         self.throttleLabel.setText(self.throttleLabels[sld.value()])
@@ -408,7 +421,7 @@ class ConfigWindow(QWidget):
 
 def main():
     parent_app = QApplication(sys.argv)
-    configWindow = ConfigWindow(useFakeBoard=True)
+    configWindow = ConfigWindow()
     configWindow.show()
     sys.exit(parent_app.exec_())
 

@@ -36,7 +36,7 @@ const int pin_HRL = 9; //pwm
 const int pin_HRM = 10; //pwm
 const int pin_HRR = 11; //pwm
 
-#define OUTPUT_FORMAT 1
+#define OUTPUT_FORMAT 0
 
 int16_t read_vals[8];
 
@@ -122,15 +122,10 @@ void loop() {
         return;
     }
     // read a packet from FIFO
-    Serial.print(".");
     if (mpu.dmpGetCurrentFIFOPacket(fifoBuffer)) { // Get the Latest packet 
-            Serial.print(".");
             mpu.dmpGetQuaternion(&q, fifoBuffer);
-            Serial.print(".");
             mpu.dmpGetGravity(&gravity, &q);
-            Serial.print(".");
             mpu.dmpGetYawPitchRoll(ypr, &q, &gravity);
-            Serial.print(".");
 
 #if OUTPUT_FORMAT == 0
             Serial.write((byte*)ypr, 12);
