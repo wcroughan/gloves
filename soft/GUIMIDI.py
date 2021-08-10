@@ -293,7 +293,8 @@ class ConfigWindow(QWidget):
         self.midiout, self.midiportname = open_midioutput()
 
     def handleFingerConnection(self, con, finger):
-        pass
+        if self.midiHandler is not None:
+            self.midiHandler.fingerConnection(finger, con)
 
     def handleLGyroData(self, roll, pitch, yaw, rollChanged, pitchChanged, yawChanged):
         self.lrval_raw = roll
