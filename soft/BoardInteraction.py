@@ -110,7 +110,12 @@ class BoardInteractor(ThreadExtension.StoppableThread):
             self.ax.legend(loc='lower left')
 
         while not self.req_stop():
-            self.parseBoardMsg()
+            readres = self.parseBoardMsg()
+            if readres != 0:
+                print("Reading from board failed with code {}, trying again in 1 second".format(readres))
+                time.sleep(1000)
+                self._board.flushInput()
+                continue
             self.sendBoardHapticData()
 
             if self.plotOutput:
@@ -204,7 +209,8 @@ class BoardInteractor(ThreadExtension.StoppableThread):
         vals = struct.unpack('4f', dat)
         valtest = struct.unpack('fffbbbb', dat)
         if not (valtest[-1] == 0 and valtest[-2] == 1 and valtest[-3] == 2 and valtest[-4] == 3):
-          print(valtest)
+            print(valtest)
+            return 1
         vals = np.array(vals) - self.offsets
         # print(vals)
         p = 3.1415926
@@ -221,8 +227,11 @@ class BoardInteractor(ThreadExtension.StoppableThread):
             self.plotVals[0:3, -1] = vals[0:3]
             # self.plotVals[3:6, -1] = vals[4:7]
 
+        return 0
+
     def sendBoardHapticData(self):
-        # TODO
+        # TODO implement
+        # Note if board read fails this is never called ... need to change for arduino to work properly?
         pass
 
     def setHaptic(self, motor, length, turnOn=True):
