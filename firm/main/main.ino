@@ -4,7 +4,7 @@
     #include "Wire.h"
 #endif
 
-MPU6050 mpu;
+MPU6050 mpu(0x69);
 #define INTERRUPT_PIN 2
 
 bool dmpReady = false;  // set true if DMP init was successful
@@ -24,21 +24,31 @@ void dmpDataReady() {
     mpuInterrupt = true;
 }
 
+const int pin_PALM = 3;
+const int pin_THUMB = 4;
+const int pin_INDEX = 5;
+const int pin_MIDDLE = 6;
+const int pin_RING = 7;
+const int pin_PINKY = 8;
 
-const int pin_HLT = 12;
-const int pin_HLP = 4;
-const int pin_HLL = 3; //pwm
-const int pin_HLM = 5; //pwm
-const int pin_HLR = 6; //pwm
-const int pin_HRT = 7;
-const int pin_HRP = 8;
-const int pin_HRL = 9; //pwm
-const int pin_HRM = 10; //pwm
-const int pin_HRR = 11; //pwm
+const int CONNECTION_ROUTE_UNKNOWN = 0;
+const int CONNECTION_ROUTE_THUMB = 1;
+const int CONNECTION_ROUTE_PALM = 2;
+const int FINGER_CONNECTION_DELAY = 20;
+
+typedef struct Finger {
+    int pin = 0;
+    int state = 0;
+    int pending_state = 0;
+    unsigned long pending_millis = 0;
+    int connection_route = 0;
+} Finger;
+Finger indexFinger;
+Finger middleFinger;
+Finger ringFinger;
+Finger pinkyFinger;
 
 #define OUTPUT_FORMAT 0
-
-int16_t read_vals[8];
 
 void setup() {
   Serial.begin(115200);
@@ -110,10 +120,59 @@ void setup() {
         Serial.println(F(")"));
     }
 
-    read_vals[7] = 0;
+    pinMode(pin_PALM, OUTPUT);
+    pinMode(pin_THUMB, OUTPUT);
+    digitalWrite(pin_PALM, LOW);
+    digitalWrite(pin_THUMB, LOW);
+    pinMode(pin_INDEX, INPUT_PULLUP);
+    pinMode(pin_MIDDLE, INPUT_PULLUP);
+    pinMode(pin_RING, INPUT_PULLUP);
+    pinMode(pin_PINKY, INPUT_PULLUP);
+
+    indexFinger.pin = pin_INDEX;
+    middleFinger.pin = pin_MIDDLE;
+    ringFinger.pin = pin_RING;
+    pinkyFinger.pin = pin_PINKY;
+}
+
+void updateFinger(struct Finger *f, unsigned long mils) {
+    int con = !digitalRead(f->pin);
+
+    if (con == f->state) {
+        f->pending_state = con;
+    } else {
+        if (f->pending_state != con) {
+            f->pending_millis = mils;
+            f->pending_state = con;
+        } else if (mils - f->pending_millis > FINGER_CONNECTION_DELAY) {
+            f->state = con;
+            if (con) {
+                //newly connected, thumb or palm?
+                digitalWrite(pin_PALM, HIGH);
+                delay(1);
+                int palm = digitalRead(f->pin);
+                digitalWrite(pin_PALM, LOW);
+                digitalWrite(pin_THUMB, HIGH);
+                delay(1);
+                int thumb = digitalRead(f->pin);
+                digitalWrite(pin_THUMB, LOW);
+                f->connection_route = palm ? CONNECTION_ROUTE_PALM : (thumb ? CONNECTION_ROUTE_THUMB : CONNECTION_ROUTE_UNKNOWN);
+            } else {
+                f->connection_route = CONNECTION_ROUTE_UNKNOWN;
+            }
+        }
+    }
+
 }
 
 void loop() {
+    unsigned long m = millis();
+
+    updateFinger(&indexFinger, m);
+    updateFinger(&middleFinger, m);
+    updateFinger(&ringFinger, m);
+    updateFinger(&pinkyFinger, m);
+
     // if programming failed, don't try to do anything
     if (!dmpReady) {
 #if OUTPUT_FORMAT == 1
@@ -122,12 +181,22 @@ void loop() {
         return;
     }
     // read a packet from FIFO
+#if OUTPUT_FORMAT == 1
+Serial.print(".");
+#endif
     if (mpu.dmpGetCurrentFIFOPacket(fifoBuffer)) { // Get the Latest packet 
+#if OUTPUT_FORMAT == 1
+Serial.print(".");
+#endif
             mpu.dmpGetQuaternion(&q, fifoBuffer);
             mpu.dmpGetGravity(&gravity, &q);
             mpu.dmpGetYawPitchRoll(ypr, &q, &gravity);
 
 #if OUTPUT_FORMAT == 0
+            Serial.write((uint8_t) indexFinger.connection_route);
+            Serial.write((uint8_t) middleFinger.connection_route);
+            Serial.write((uint8_t) ringFinger.connection_route);
+            Serial.write((uint8_t) pinkyFinger.connection_route);
             Serial.write((byte*)ypr, 12);
             Serial.write(3);
             Serial.write(2);
@@ -142,15 +211,26 @@ void loop() {
             Serial.print(ypr[2] * 180/M_PI);
             Serial.print("\t");
 
-            Serial.print("q:\t");
-            Serial.print(q.w);
+            Serial.print("I:");
+            Serial.print(indexFinger.state);
+            Serial.print(",");
+            Serial.print(indexFinger.connection_route);
             Serial.print("\t");
-            Serial.print(q.x);
+            Serial.print("M:");
+            Serial.print(middleFinger.state);
+            Serial.print(",");
+            Serial.print(middleFinger.connection_route);
             Serial.print("\t");
-            Serial.print(q.y);
+            Serial.print("R:");
+            Serial.print(ringFinger.state);
+            Serial.print(",");
+            Serial.print(ringFinger.connection_route);
             Serial.print("\t");
-            Serial.print(q.z);
-            Serial.print("\t");
+            Serial.print("P:");
+            Serial.print(pinkyFinger.state);
+            Serial.print(",");
+            Serial.print(pinkyFinger.connection_route);
+            // Serial.print("\t");
 
             Serial.println();
 #endif

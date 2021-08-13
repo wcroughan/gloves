@@ -282,14 +282,14 @@ class ConfigWindow(QWidget):
 
     def calibyawbtn(self, side):
         if side == "L":
-            self.ryminval = self.ryval - 0.01
-            self.rymaxval = self.ryval - 0.01
-            self.calibLabel_r.setText("Yaw calibrating...")
-            self.calibActiveYawLeft = True
-        else:
             self.lyminval = self.lyval - 0.01
             self.lymaxval = self.lyval - 0.01
             self.calibLabel_l.setText("Yaw calibrating...")
+            self.calibActiveYawLeft = True
+        else:
+            self.ryminval = self.ryval - 0.01
+            self.rymaxval = self.ryval - 0.01
+            self.calibLabel_r.setText("Yaw calibrating...")
             self.calibActiveYawRight = True
         QTimer.singleShot(3000, lambda: self.calibyawfinish(side))
 

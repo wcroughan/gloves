@@ -25,13 +25,13 @@ class RealBoard(QWidget):
         for fi, f in enumerate(self.allfingers):
             g1.addWidget(QLabel(f), 0, fi+1)
 
-            tmombtn = QPushButton("Off")
+            tmombtn = QPushButton("")
             tmombtn.setEnabled(False)
             self.fingerDict[f + "T"] = tmombtn
             tmombtn.setStyleSheet('QPushButton {background-color: white; border:  none}')
             g1.addWidget(tmombtn, 1, fi+1)
 
-            pmombtn = QPushButton("Off")
+            pmombtn = QPushButton("")
             pmombtn.setEnabled(False)
             self.fingerDict[f + "P"] = pmombtn
             pmombtn.setStyleSheet('QPushButton {background-color: white; border:  none}')
@@ -72,9 +72,11 @@ class RealBoard(QWidget):
         if con:
             self.fingerDict[finger].setStyleSheet(
                 'QPushButton {background-color: blue; border:  none}')
+            self.fingerDict[finger].setText("On")
         else:
             self.fingerDict[finger].setStyleSheet(
                 'QPushButton {background-color: white; border:  none}')
+            self.fingerDict[finger].setText("")
 
     def handleLGyroData(self, roll, pitch, yaw, rollChanged, pitchChanged, yawChanged):
         self.gyroDict["LR"].setText(str(roll))
