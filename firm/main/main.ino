@@ -4,9 +4,10 @@
     #include "Wire.h"
 #endif
 
-#define OUTPUT_FORMAT 0
+#define OUTPUT_FORMAT 1
 
-MPU6050 mpu(0x69);
+// MPU6050 mpu(0x68);
+MPU6050 mpu;
 #define INTERRUPT_PIN 2
 
 bool dmpReady = false;  // set true if DMP init was successful
@@ -179,8 +180,9 @@ void loop() {
     if (!dmpReady) {
 #if OUTPUT_FORMAT == 1
         Serial.println("DMP not ready");
+        // delay(1000);
 #endif
-        return;
+        // return;
     }
     // read a packet from FIFO
 #if OUTPUT_FORMAT == 1
@@ -193,6 +195,12 @@ Serial.print(".");
             mpu.dmpGetQuaternion(&q, fifoBuffer);
             mpu.dmpGetGravity(&gravity, &q);
             mpu.dmpGetYawPitchRoll(ypr, &q, &gravity);
+
+    } else {
+#if OUTPUT_FORMAT == 1
+        Serial.println("Didn't get info packet from fifo");
+#endif
+    }
 
 #if OUTPUT_FORMAT == 0
             Serial.write((uint8_t) indexFinger.connection_route);
@@ -236,12 +244,11 @@ Serial.print(".");
 
             Serial.println();
 #endif
-    } else {
-#if OUTPUT_FORMAT == 1
-        Serial.println("Didn't get info packet from fifo");
-#endif
-    }
 
     // delay(1000);
-    delay(20);
+    #if OUTPUT_FORMAT == 0
+    delay(10);
+    #else
+    delay(100);
+    #endif
 }
