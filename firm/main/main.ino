@@ -4,6 +4,8 @@
     #include "Wire.h"
 #endif
 
+#define OUTPUT_FORMAT 0
+
 MPU6050 mpu(0x69);
 #define INTERRUPT_PIN 2
 
@@ -48,7 +50,6 @@ Finger middleFinger;
 Finger ringFinger;
 Finger pinkyFinger;
 
-#define OUTPUT_FORMAT 0
 
 void setup() {
   Serial.begin(115200);
@@ -60,6 +61,7 @@ void setup() {
     #if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
         Wire.begin();
         Wire.setClock(400000); // 400kHz I2C clock. Comment this line if having compilation difficulties
+        Wire.setWireTimeout(1000, true);
     #elif I2CDEV_IMPLEMENTATION == I2CDEV_BUILTIN_FASTWIRE
         Fastwire::setup(400, true);
     #endif
@@ -241,5 +243,5 @@ Serial.print(".");
     }
 
     // delay(1000);
-    delay(10);
+    delay(20);
 }
