@@ -1,31 +1,11 @@
-#include "I2Cdev.h"
-#include "MPU6050_6Axis_MotionApps20.h"
-#if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
-    #include "Wire.h"
-#endif
+#include "ICM_20948.h"
 
-#define OUTPUT_FORMAT 1
+#define OUTPUT_FORMAT 0
 
-// MPU6050 mpu(0x68);
-MPU6050 mpu;
-#define INTERRUPT_PIN 2
+ICM_20948_I2C myICM;
+double quats[4];
+double ypr[3];
 
-bool dmpReady = false;  // set true if DMP init was successful
-uint8_t mpuIntStatus;   // holds actual interrupt status byte from MPU
-uint8_t devStatus;      // return status after each device operation (0 = success, !0 = error)
-uint16_t packetSize;    // expected DMP packet size (default is 42 bytes)
-// uint16_t fifoCount;     // count of all bytes currently in FIFO
-uint8_t fifoBuffer[64]; // FIFO storage buffer
-
-// orientation/motion vars
-Quaternion q;           // [w, x, y, z]         quaternion container
-VectorFloat gravity;    // [x, y, z]            gravity vector
-float ypr[3];           // [yaw, pitch, roll]   yaw/pitch/roll container and gravity vector
-
-volatile bool mpuInterrupt = false;     // indicates whether MPU interrupt pin has gone high
-void dmpDataReady() {
-    mpuInterrupt = true;
-}
 
 const int pin_PALM = 3;
 const int pin_THUMB = 4;
@@ -59,68 +39,29 @@ void setup() {
   Serial.println("Hello!");
 #endif
 
-    #if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
-        Wire.begin();
-        Wire.setClock(400000); // 400kHz I2C clock. Comment this line if having compilation difficulties
-        Wire.setWireTimeout(1000, true);
-    #elif I2CDEV_IMPLEMENTATION == I2CDEV_BUILTIN_FASTWIRE
-        Fastwire::setup(400, true);
-    #endif
+    Wire.begin();
+    Wire.setClock(400000); // 400kHz I2C clock. Comment this line if having compilation difficulties
+    Wire.setWireTimeout(1000, true);
 
-    mpu.initialize();
-    pinMode(INTERRUPT_PIN, INPUT);
+    bool initialized = false;
+    while (!initialized) {
+        // myICM.begin(Wire, 1);
+        myICM.begin(Wire, 0); // for other address
 
-    bool tc = mpu.testConnection();
 #if OUTPUT_FORMAT == 1
-    Serial.println(F("Testing device connections..."));
-    Serial.println(tc ? F("MPU6050 connection successful") : F("MPU6050 connection failed"));
+        Serial.println(myICM.statusString());
 #endif
-
-    devStatus = mpu.dmpInitialize();
-
-    // supply your own gyro offsets here, scaled for min sensitivity
-    mpu.setXGyroOffset(220);
-    mpu.setYGyroOffset(76);
-    mpu.setZGyroOffset(-85);
-    mpu.setZAccelOffset(1788); // 1688 factory default for my test chip
-
-    // make sure it worked (returns 0 if so)
-    if (devStatus == 0) {
-        // Calibration Time: generate offsets and calibrate our MPU6050
-        mpu.CalibrateAccel(6);
-        mpu.CalibrateGyro(6);
-        mpu.PrintActiveOffsets();
-        // turn on the DMP, now that it's ready
+        if (myICM.status != ICM_20948_Stat_Ok) {
 #if OUTPUT_FORMAT == 1
-        Serial.println(F("Enabling DMP..."));
+            Serial.println("Trying again...");
 #endif
-        mpu.setDMPEnabled(true);
-
-        // enable Arduino interrupt detection
+            delay(500);
+        } else {
 #if OUTPUT_FORMAT == 1
-        Serial.print(F("Enabling interrupt detection (Arduino external interrupt "));
-        Serial.print(digitalPinToInterrupt(INTERRUPT_PIN));
-        Serial.println(F(")..."));
+            Serial.println("Connected!");
 #endif
-        attachInterrupt(digitalPinToInterrupt(INTERRUPT_PIN), dmpDataReady, RISING);
-        mpuIntStatus = mpu.getIntStatus();
-
-        // set our DMP Ready flag so the main loop() function knows it's okay to use it
-#if OUTPUT_FORMAT == 1
-        Serial.println(F("DMP ready! Waiting for first interrupt..."));
-#endif
-        dmpReady = true;
-
-        // get expected DMP packet size for later comparison
-        packetSize = mpu.dmpGetFIFOPacketSize();
-    } else {
-        // ERROR!
-        // 1 = initial memory load failed
-        // 2 = DMP configuration updates failed
-        // (if it's going to break, usually the code will be 1)
-        Serial.print(F("DMP Initialization failed (code "));
-        Serial.print(devStatus);
-        Serial.println(F(")"));
+            initialized = true;
+        }
     }
 
     pinMode(pin_PALM, OUTPUT);
@@ -136,6 +77,73 @@ void setup() {
     middleFinger.pin = pin_MIDDLE;
     ringFinger.pin = pin_RING;
     pinkyFinger.pin = pin_PINKY;
+
+
+  bool success = true; // Use success to show if the DMP configuration was successful
+
+  // Initialize the DMP. initializeDMP is a weak function. You can overwrite it if you want to e.g. to change the sample rate
+  success &= (myICM.initializeDMP() == ICM_20948_Stat_Ok);
+
+  // DMP sensor options are defined in ICM_20948_DMP.h
+  //    INV_ICM20948_SENSOR_ACCELEROMETER               (16-bit accel)
+  //    INV_ICM20948_SENSOR_GYROSCOPE                   (16-bit gyro + 32-bit calibrated gyro)
+  //    INV_ICM20948_SENSOR_RAW_ACCELEROMETER           (16-bit accel)
+  //    INV_ICM20948_SENSOR_RAW_GYROSCOPE               (16-bit gyro + 32-bit calibrated gyro)
+  //    INV_ICM20948_SENSOR_MAGNETIC_FIELD_UNCALIBRATED (16-bit compass)
+  //    INV_ICM20948_SENSOR_GYROSCOPE_UNCALIBRATED      (16-bit gyro)
+  //    INV_ICM20948_SENSOR_STEP_DETECTOR               (Pedometer Step Detector)
+  //    INV_ICM20948_SENSOR_STEP_COUNTER                (Pedometer Step Detector)
+  //    INV_ICM20948_SENSOR_GAME_ROTATION_VECTOR        (32-bit 6-axis quaternion)
+  //    INV_ICM20948_SENSOR_ROTATION_VECTOR             (32-bit 9-axis quaternion + heading accuracy)
+  //    INV_ICM20948_SENSOR_GEOMAGNETIC_ROTATION_VECTOR (32-bit Geomag RV + heading accuracy)
+  //    INV_ICM20948_SENSOR_GEOMAGNETIC_FIELD           (32-bit calibrated compass)
+  //    INV_ICM20948_SENSOR_GRAVITY                     (32-bit 6-axis quaternion)
+  //    INV_ICM20948_SENSOR_LINEAR_ACCELERATION         (16-bit accel + 32-bit 6-axis quaternion)
+  //    INV_ICM20948_SENSOR_ORIENTATION                 (32-bit 9-axis quaternion + heading accuracy)
+
+  // Enable the DMP orientation sensor
+  success &= (myICM.enableDMPSensor(INV_ICM20948_SENSOR_ORIENTATION) == ICM_20948_Stat_Ok);
+
+  // Enable any additional sensors / features
+  //success &= (myICM.enableDMPSensor(INV_ICM20948_SENSOR_RAW_GYROSCOPE) == ICM_20948_Stat_Ok);
+  //success &= (myICM.enableDMPSensor(INV_ICM20948_SENSOR_RAW_ACCELEROMETER) == ICM_20948_Stat_Ok);
+  //success &= (myICM.enableDMPSensor(INV_ICM20948_SENSOR_MAGNETIC_FIELD_UNCALIBRATED) == ICM_20948_Stat_Ok);
+
+  // Configuring DMP to output data at multiple ODRs:
+  // DMP is capable of outputting multiple sensor data at different rates to FIFO.
+  // Setting value can be calculated as follows:
+  // Value = (DMP running rate / ODR ) - 1
+  // E.g. For a 5Hz ODR rate when DMP is running at 55Hz, value = (55/5) - 1 = 10.
+  success &= (myICM.setDMPODRrate(DMP_ODR_Reg_Quat9, 0) == ICM_20948_Stat_Ok); // Set to the maximum
+  //success &= (myICM.setDMPODRrate(DMP_ODR_Reg_Accel, 0) == ICM_20948_Stat_Ok); // Set to the maximum
+  //success &= (myICM.setDMPODRrate(DMP_ODR_Reg_Gyro, 0) == ICM_20948_Stat_Ok); // Set to the maximum
+  //success &= (myICM.setDMPODRrate(DMP_ODR_Reg_Gyro_Calibr, 0) == ICM_20948_Stat_Ok); // Set to the maximum
+  //success &= (myICM.setDMPODRrate(DMP_ODR_Reg_Cpass, 0) == ICM_20948_Stat_Ok); // Set to the maximum
+  //success &= (myICM.setDMPODRrate(DMP_ODR_Reg_Cpass_Calibr, 0) == ICM_20948_Stat_Ok); // Set to the maximum
+
+  // Enable the FIFO
+  success &= (myICM.enableFIFO() == ICM_20948_Stat_Ok);
+
+  // Enable the DMP
+  success &= (myICM.enableDMP() == ICM_20948_Stat_Ok);
+
+  // Reset DMP
+  success &= (myICM.resetDMP() == ICM_20948_Stat_Ok);
+
+  // Reset FIFO
+  success &= (myICM.resetFIFO() == ICM_20948_Stat_Ok);
+
+  // Check success
+  if (success) {
+#if OUTPUT_FORMAT == 1
+    Serial.println("DMP enabled!");
+#endif
+  } else {
+    Serial.println("Enable DMP failed!");
+    Serial.println("Please check that you have uncommented line 29 (#define ICM_20948_USE_DMP) in ICM_20948_C.h...");
+    while (1)
+      ; // Do nothing more
+  }
 }
 
 void updateFinger(struct Finger *f, unsigned long mils) {
@@ -168,6 +176,59 @@ void updateFinger(struct Finger *f, unsigned long mils) {
 
 }
 
+void quatsToYPR(double *q, double *ypr) {
+    double w = q[0];
+    double x = q[1];
+    double y = q[2];
+    double z = q[3];
+
+    double sinr_cosp = 2 * (w * x + y * z);
+    double cosr_cosp = 1 - 2 * (x * x + y * y);
+    ypr[1] = atan2(sinr_cosp, cosr_cosp);
+
+    // pitch (y-axis rotation)
+    double sinp = 2 * (w * y - z * x);
+    if (abs(sinp) >= 1)
+        ypr[2] = copysign(M_PI / 2, sinp); // use 90 degrees if out of range
+    else
+        ypr[2] = asin(sinp);
+
+    // yaw (z-axis rotation)
+    double siny_cosp = 2 * (w * z + x * y);
+    double cosy_cosp = 1 - 2 * (y * y + z * z);
+    ypr[0] = atan2(siny_cosp, cosy_cosp);
+
+
+    //in this version, w == q[0]
+        //   threeaxisrot( -2*(q[2]*q[3] - q[0]*q[1]),
+        //             q[0]*q[0] - q[1]*q[1] - q[2]*q[2] + q[3]*q[3],
+        //             2*(q[1]*q[3] + q[0]*q[2]),
+        //            -2*(q[1]*q[2] - q[0]*q[3]),
+        //             q[0]*q[0] + q[1]*q[1] - q[2]*q[2] - q[3]*q[3],
+        //             ypr);
+        //   threeaxisrot( -2*(q[1]*q[2] - q[3]*q[0]),
+        //             q[3]*q[3] - q[0]*q[0] - q[1]*q[1] + q[2]*q[2],
+        //             2*(q[0]*q[2] + q[3]*q[1]),
+        //            -2*(q[0]*q[1] - q[3]*q[2]),
+        //             q[3]*q[3] + q[0]*q[0] - q[1]*q[1] - q[2]*q[2],
+        //             ypr);
+//    ypr[0] = atan2(2.0*(q[2]*q[3] + q[0]*q[1]), q[0]*q[0] - q[1]*q[1] - q[2]*q[2] + q[3]*q[3]);
+//    ypr[1] = asin(-2.0*(q[1]*q[3] - q[0]*q[2]));
+//    ypr[2] = atan2(2.0*(q[1]*q[2] + q[0]*q[3]), q[0]*q[0] + q[1]*q[1] - q[2]*q[2] - q[3]*q[3]);
+//    ypr[0] = atan2(2.0*(q[1]*q[2] + q[3]*q[0]), q[3]*q[3] - q[0]*q[0] - q[1]*q[1] + q[2]*q[2]);
+//    ypr[1] = asin(-2.0*(q[0]*q[2] - q[3]*q[1]));
+//    ypr[2] = atan2(2.0*(q[0]*q[1] + q[3]*q[2]), q[3]*q[3] + q[0]*q[0] - q[1]*q[1] - q[2]*q[2]);
+    // ypr[0] = atan2(2.0*(q.y*q.z + q.w*q.x), q.w*q.w - q.x*q.x - q.y*q.y + q.z*q.z);
+    // ypr[1] = asin(-2.0*(q.x*q.z - q.w*q.y));
+    // ypr[2] = atan2(2.0*(q.x*q.y + q.w*q.z), q.w*q.w + q.x*q.x - q.y*q.y - q.z*q.z);
+        //   threeaxisrot( -2*(q.y*q.z - q.w*q.x),
+        //             q.w*q.w - q.x*q.x - q.y*q.y + q.z*q.z,
+        //             2*(q.x*q.z + q.w*q.y),
+        //            -2*(q.x*q.y - q.w*q.z),
+        //             q.w*q.w + q.x*q.x - q.y*q.y - q.z*q.z,
+        //             ypr);
+}
+
 void loop() {
     unsigned long m = millis();
 
@@ -176,31 +237,51 @@ void loop() {
     updateFinger(&ringFinger, m);
     updateFinger(&pinkyFinger, m);
 
-    // if programming failed, don't try to do anything
-    if (!dmpReady) {
-#if OUTPUT_FORMAT == 1
-        Serial.println("DMP not ready");
-        // delay(1000);
-#endif
-        // return;
-    }
-    // read a packet from FIFO
-#if OUTPUT_FORMAT == 1
-Serial.print(".");
-#endif
-    if (mpu.dmpGetCurrentFIFOPacket(fifoBuffer)) { // Get the Latest packet 
-#if OUTPUT_FORMAT == 1
-Serial.print(".");
-#endif
-            mpu.dmpGetQuaternion(&q, fifoBuffer);
-            mpu.dmpGetGravity(&gravity, &q);
-            mpu.dmpGetYawPitchRoll(ypr, &q, &gravity);
 
-    } else {
-#if OUTPUT_FORMAT == 1
-        Serial.println("Didn't get info packet from fifo");
-#endif
+  // Read any DMP data waiting in the FIFO
+  // Note:
+  //    readDMPdataFromFIFO will return ICM_20948_Stat_FIFONoDataAvail if no data is available.
+  //    If data is available, readDMPdataFromFIFO will attempt to read _one_ frame of DMP data.
+  //    readDMPdataFromFIFO will return ICM_20948_Stat_FIFOIncompleteData if a frame was present but was incomplete
+  //    readDMPdataFromFIFO will return ICM_20948_Stat_Ok if a valid frame was read.
+  //    readDMPdataFromFIFO will return ICM_20948_Stat_FIFOMoreDataAvail if a valid frame was read _and_ the FIFO contains more (unread) data.
+  icm_20948_DMP_data_t data;
+  myICM.readDMPdataFromFIFO(&data);
+
+  while (myICM.status == ICM_20948_Stat_FIFOMoreDataAvail)
+    myICM.readDMPdataFromFIFO(&data);
+
+  if ((myICM.status == ICM_20948_Stat_Ok) ) // Was valid data available?
+  {
+    //Serial.print(F("Received data! Header: 0x")); // Print the header in HEX so we can see what data is arriving in the FIFO
+    //if ( data.header < 0x1000) Serial.print( "0" ); // Pad the zeros
+    //if ( data.header < 0x100) Serial.print( "0" );
+    //if ( data.header < 0x10) Serial.print( "0" );
+    //Serial.println( data.header, HEX );
+
+    if ((data.header & DMP_header_bitmap_Quat9) > 0) // We have asked for orientation data so we should receive Quat9
+    {
+      // Q0 value is computed from this equation: Q0^2 + Q1^2 + Q2^2 + Q3^2 = 1.
+      // In case of drift, the sum will not add to 1, therefore, quaternion data need to be corrected with right bias values.
+      // The quaternion data is scaled by 2^30.
+
+      //Serial.printf("Quat9 data is: Q1:%ld Q2:%ld Q3:%ld Accuracy:%d\r\n", data.Quat9.Data.Q1, data.Quat9.Data.Q2, data.Quat9.Data.Q3, data.Quat9.Data.Accuracy);
+
+      // Scale to +/- 1
+      quats[1] = ((double)data.Quat9.Data.Q1) / 1073741824.0; // Convert to double. Divide by 2^30
+      quats[2] = ((double)data.Quat9.Data.Q2) / 1073741824.0; // Convert to double. Divide by 2^30
+      quats[3] = ((double)data.Quat9.Data.Q3) / 1073741824.0; // Convert to double. Divide by 2^30
+      quats[0] = sqrt(1.0 - ((quats[1] * quats[1]) + (quats[2] * quats[2]) + (quats[3] * quats[3])));
+
+      quatsToYPR(quats, ypr);
     }
+  }
+  else {
+      #if OUTPUT_FORMAT == 1
+      Serial.print("Couldn't read:\t");
+      Serial.println(myICM.status);
+      #endif
+  }
 
 #if OUTPUT_FORMAT == 0
             Serial.write((uint8_t) indexFinger.connection_route);
@@ -213,13 +294,24 @@ Serial.print(".");
             Serial.write(1);
             Serial.write(0);
 #else
-            Serial.print("ypr\t");
-            Serial.print(ypr[0] * 180/M_PI);
+            // Serial.print(F("Q1:"));
+            // Serial.print(quats[1], 3);
+            // Serial.print(F(" Q2:"));
+            // Serial.print(quats[2], 3);
+            // Serial.print(F(" Q3:"));
+            // Serial.print(quats[3], 3);
+
+            Serial.print(F("Y:"));
+            Serial.print(ypr[0], 3);
+            Serial.print(F(" P:"));
+            Serial.print(ypr[1], 3);
+            Serial.print(F(" R:"));
+            Serial.print(ypr[2], 3);
             Serial.print("\t");
-            Serial.print(ypr[1] * 180/M_PI);
+            Serial.print(F(" Accuracy:"));
+            Serial.print(data.Quat9.Data.Accuracy);
             Serial.print("\t");
-            Serial.print(ypr[2] * 180/M_PI);
-            Serial.print("\t");
+
 
             Serial.print("I:");
             Serial.print(indexFinger.state);
