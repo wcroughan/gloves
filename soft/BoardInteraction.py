@@ -173,20 +173,11 @@ class BoardInteractor(ThreadExtension.StoppableThread):
             print(vals)
             if vals[-1] == 0 and vals[-2] == 1 and vals[-3] == 2 and vals[-4] == 3:
                 break
-            # print(vals)
-            # if np.count_nonzero(vals) == len(vals) - 4 and vals[-1] == 0 and vals[-2] == 0 and vals[-3] == 0 and vals[-4] == 0:
-            #     break
-            # vals = np.array(struct.unpack('4f', self._board.read(16)))
-            # if np.count_nonzero(vals) == len(vals) - 1 and vals[-1] == 0:
-            # break
-            # if np.count_nonzero(vals) == len(vals) - 1:
-            #     for i in range(len(vals)):
-            #         self._board.read(4)
-            #         if vals[i] == 0:
-            #             break
-            # else:
-            #     self._board.read(1)
-            self._board.read(1)
+
+            for i in range(len(vals)):
+                if vals[i] == 3 and vals[(i+1) % len(vals)] == 2 and vals[(i+2) % len(vals)] == 1 and vals[(i+3) % len(vals)] == 0:
+                    self._board.read(i + 4)
+                    break
 
     def parseBoardMsg(self):
         # TODO Read from other board also

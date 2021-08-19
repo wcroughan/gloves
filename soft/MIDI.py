@@ -240,14 +240,23 @@ class ToyMidiMap(MIDIMapping):
         self.rightNoteVelocity = 127
 
         self.rr_ccnum = 22
-        self.ry_ccnum = 23
+        self.rp_ccnum = 23
+        self.ry_ccnum = 24
         self.rr_enabled = True
+        self.rp_enabled = True
         self.ry_enabled = True
 
-        self.lr_ccnum = 24
-        self.ly_ccnum = 25
+        self.lr_ccnum = 25
+        self.lp_ccnum = 26
+        self.ly_ccnum = 27
         self.lr_enabled = True
+        self.lp_enabled = True
         self.ly_enabled = True
+
+        self.VELOCITY_CONTROL_OPTIONS = ["Right Pitch", "Right Roll",
+                                         "Right Yaw", "Left Pitch", "Left Roll", "Left Yaw", "127"]
+        self.lvelctrl = 6
+        self.rvelctrl = 6
 
         self.initWidget()
 
@@ -288,6 +297,15 @@ class ToyMidiMap(MIDIMapping):
 
         l2 = QHBoxLayout()
         l2.addWidget(QLabel("Right Pitch"))
+        self.rpcb = QCheckBox("Enabled")
+        self.rpcb.setChecked(self.rp_enabled)
+        self.rpcb.stateChanged.connect(lambda: self.btnstate("rp", self.rpcb))
+        l2.addWidget(QLabel("Midi cc:"))
+        self.rpsb = QSpinBox()
+        self.rpsb.setValue(self.rp_ccnum)
+        self.rpsb.valueChanged.connect(lambda: self.spinstate("rp", self.rpsb))
+        l2.addWidget(self.rpsb)
+        l2.addWidget(self.rpcb)
         self.rpvalLabel = QLabel("0")
         l2.addWidget(QLabel("Value:"))
         l2.addWidget(self.rpvalLabel)
@@ -309,6 +327,15 @@ class ToyMidiMap(MIDIMapping):
         l3.addWidget(self.ryvalLabel)
         layout.addLayout(l3)
 
+        l7 = QHBoxLayout()
+        l7.addWidget(QLabel("Right Velocity Control"))
+        self.rvcb = QComboBox()
+        self.rvcb.addItems(self.VELOCITY_CONTROL_OPTIONS)
+        self.rvcb.currentIndexChanged.connect(
+            lambda idx: self.velocityControlState("r", self.rvcb, idx))
+        l7.addWidget(self.rvcb)
+        layout.addLayout(l7)
+
         l4 = QHBoxLayout()
         l4.addWidget(QLabel("Left Roll"))
         self.lrcb = QCheckBox("Enabled")
@@ -327,6 +354,15 @@ class ToyMidiMap(MIDIMapping):
 
         l5 = QHBoxLayout()
         l5.addWidget(QLabel("Left Pitch"))
+        self.lpcb = QCheckBox("Enabled")
+        self.lpcb.setChecked(self.lp_enabled)
+        self.lpcb.stateChanged.connect(lambda: self.btnstate("lp", self.lpcb))
+        l5.addWidget(QLabel("Midi cc:"))
+        self.lpsb = QSpinBox()
+        self.lpsb.setValue(self.lp_ccnum)
+        self.lpsb.valueChanged.connect(lambda: self.spinstate("lp", self.lpsb))
+        l5.addWidget(self.lpsb)
+        l5.addWidget(self.lpcb)
         self.lpvalLabel = QLabel("0")
         l5.addWidget(QLabel("Value:"))
         l5.addWidget(self.lpvalLabel)
@@ -347,6 +383,15 @@ class ToyMidiMap(MIDIMapping):
         l6.addWidget(QLabel("Value:"))
         l6.addWidget(self.lyvalLabel)
         layout.addLayout(l6)
+
+        l8 = QHBoxLayout()
+        l8.addWidget(QLabel("Left Velocity Control"))
+        self.lvcb = QComboBox()
+        self.lvcb.addItems(self.VELOCITY_CONTROL_OPTIONS)
+        self.lvcb.currentIndexChanged.connect(
+            lambda idx: self.velocityControlState("l", self.lvcb, idx))
+        l8.addWidget(self.lvcb)
+        layout.addLayout(l8)
 
         self.widget.setLayout(layout)
 
@@ -420,45 +465,95 @@ class ToyMidiMap(MIDIMapping):
         if self.rr_enabled:
             self.cc(self.rr_ccnum, int(val*127))
 
+        if self.VELOCITY_CONTROL_OPTIONS[self.lvelctrl] == "Right Roll":
+            self.leftNoteVelocity = int(val*127)
+        if self.VELOCITY_CONTROL_OPTIONS[self.rvelctrl] == "Right Roll":
+            self.rightNoteVelocity = int(val*127)
+
     def rightPitchChanged(self, val):
         self.rpvalLabel.setText(str(int(val*127)))
-        self.rightNoteVelocity = int(val*127)
+        if self.rp_enabled:
+            self.cc(self.rp_ccnum, int(val*127))
+
+        if self.VELOCITY_CONTROL_OPTIONS[self.lvelctrl] == "Right Pitch":
+            self.leftNoteVelocity = int(val*127)
+        if self.VELOCITY_CONTROL_OPTIONS[self.rvelctrl] == "Right Pitch":
+            self.rightNoteVelocity = int(val*127)
 
     def rightYawChanged(self, val):
         self.ryvalLabel.setText(str(int(val*127)))
         if self.ry_enabled:
             self.cc(self.ry_ccnum, int(val*127))
 
+        if self.VELOCITY_CONTROL_OPTIONS[self.lvelctrl] == "Right Yaw":
+            self.leftNoteVelocity = int(val*127)
+        if self.VELOCITY_CONTROL_OPTIONS[self.rvelctrl] == "Right Yaw":
+            self.rightNoteVelocity = int(val*127)
+
     def leftRollChanged(self, val):
         self.lrvalLabel.setText(str(int(val*127)))
         if self.lr_enabled:
             self.cc(self.lr_ccnum, int(val*127))
 
+        if self.VELOCITY_CONTROL_OPTIONS[self.lvelctrl] == "Left Roll":
+            self.leftNoteVelocity = int(val*127)
+        if self.VELOCITY_CONTROL_OPTIONS[self.rvelctrl] == "Left Roll":
+            self.rightNoteVelocity = int(val*127)
+
     def leftPitchChanged(self, val):
         self.lpvalLabel.setText(str(int(val*127)))
-        self.leftNoteVelocity = int(val*127)
+        if self.lp_enabled:
+            self.cc(self.lp_ccnum, int(val*127))
+
+        if self.VELOCITY_CONTROL_OPTIONS[self.lvelctrl] == "Left Pitch":
+            self.leftNoteVelocity = int(val*127)
+        if self.VELOCITY_CONTROL_OPTIONS[self.rvelctrl] == "Left Pitch":
+            self.rightNoteVelocity = int(val*127)
 
     def leftYawChanged(self, val):
         self.lyvalLabel.setText(str(int(val*127)))
         if self.ly_enabled:
             self.cc(self.ly_ccnum, int(val*127))
 
+        if self.VELOCITY_CONTROL_OPTIONS[self.lvelctrl] == "Left Yaw":
+            self.leftNoteVelocity = int(val*127)
+        if self.VELOCITY_CONTROL_OPTIONS[self.rvelctrl] == "Left Yaw":
+            self.rightNoteVelocity = int(val*127)
+
     def btnstate(self, ax, cb):
         if ax == "rr":
             self.rr_enabled = cb.isChecked()
+        elif ax == "rp":
+            self.rp_enabled = cb.isChecked()
         elif ax == "ry":
             self.ry_enabled = cb.isChecked()
         elif ax == "lr":
             self.lr_enabled = cb.isChecked()
+        elif ax == "lp":
+            self.lp_enabled = cb.isChecked()
         elif ax == "ly":
             self.ly_enabled = cb.isChecked()
 
     def spinstate(self, ax, sb):
         if ax == "rr":
             self.rr_ccnum = sb.value()
+        elif ax == "rp":
+            self.rp_ccnum = sb.value()
         elif ax == "ry":
             self.ry_ccnum = sb.value()
         elif ax == "lr":
             self.lr_ccnum = sb.value()
+        elif ax == "lp":
+            self.lp_ccnum = sb.value()
         elif ax == "ly":
             self.ly_ccnum = sb.value()
+
+    def velocityControlState(self, side, cb, idx):
+        if side == "l":
+            self.lvelctrl = idx
+            if self.VELOCITY_CONTROL_OPTIONS[self.lvelctrl] == "127":
+                self.leftNoteVelocity = 127
+        elif side == "r":
+            self.rvelctrl = idx
+            if self.VELOCITY_CONTROL_OPTIONS[self.rvelctrl] == "127":
+                self.rightNoteVelocity = 127

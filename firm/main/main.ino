@@ -152,8 +152,10 @@ void setup() {
     // myICM.setYGyroOffset(76);
     // myICM.setZGyroOffset(-85);
     // myICM.setZAccelOffset(1788); // 1688 factory default for my test chip
-    myICM.calibrateAccel(15);
-    myICM.calibrateGyro(15);
+    // myICM.calibrateAccel(15);
+    // myICM.calibrateGyro(15);
+    myICM.calibrateAccel(6);
+    myICM.calibrateGyro(6);
   } else {
     Serial.println("Enable DMP failed!");
     Serial.println("Please check that you have uncommented line 29 (#define ICM_20948_USE_DMP) in ICM_20948_C.h...");
