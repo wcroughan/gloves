@@ -944,26 +944,24 @@ ICM_20948_Status_e ICM_20948::write(uint8_t reg, uint8_t *pdata, uint32_t len)
   return (status);
 }
 
-ICM_20948_Status_e ICM_20948::writeWord(uint8_t reg, uint16_t data)
+ICM_20948_Status_e ICM_20948::writeWord(uint8_t bank, uint8_t reg, uint16_t data)
 {
-    asdf
-    //TODO set bank
   uint8_t buf[2];
   buf[0] = (uint8_t) (data >> 8);
   buf[1] = (uint8_t) data;
+  ICM_20948_set_bank(&_device, bank);
   status = write(reg, buf, 2);
   return (status);
 }
 
-ICM_20948_Status_e ICM_20948::readWord(uint8_t reg, uint16_t *data)
+ICM_20948_Status_e ICM_20948::readWord(uint8_t bank, uint8_t reg, uint16_t *data)
 {
-    //TODO set bank
-    qewr
   uint8_t buf[2];
+  ICM_20948_set_bank(&_device, bank);
   status = read(reg, buf, 2);
   uint8_t *buf2 = (uint8_t*) data;
-  buf2[0] = buf[0];
-  buf2[1] = buf[1];
+  buf2[0] = buf[1];
+  buf2[1] = buf[0];
 
   return (status);
 }
@@ -1420,22 +1418,85 @@ ICM_20948_Status_e ICM_20948::initializeDMP(void)
 //***************************************************************************************
 
 
-//TODO find correct addresses
+ICM_20948_Status_e ICM_20948::setXAccelOffset(int16_t offset) {
+	return writeWord(1, 0x14, *((uint16_t*)&offset));
+}
+ICM_20948_Status_e ICM_20948::setYAccelOffset(int16_t offset) {
+	return writeWord(1, 0x17, *((uint16_t*)&offset));
+}
 ICM_20948_Status_e ICM_20948::setZAccelOffset(int16_t offset) {
-	// uint8_t SaveAddress = ((getDeviceID() < 0x38 )? MPU6050_RA_ZA_OFFS_H:0x7D); // MPU6050,MPU9150 Vs MPU6500,MPU9250
-    uint8_t SaveAddress = 0;//TODO
-	writeWord(SaveAddress, offset);
+	return writeWord(1, 0x1A, *((uint16_t*)&offset));
+}
+int16_t ICM_20948::getXAccelOffset() {
+    uint16_t ret;
+	readWord(1, 0x14, &ret);
+    return *((int16_t*)&ret);
+}
+int16_t ICM_20948::getYAccelOffset() {
+    int16_t ret;
+	readWord(1, 0x17, &ret);
+    return *((int16_t*)&ret);
+}
+int16_t ICM_20948::getZAccelOffset() {
+    int16_t ret;
+	readWord(1, 0x1A, &ret);
+    return *((int16_t*)&ret);
 }
 
 ICM_20948_Status_e ICM_20948::setXGyroOffset(int16_t offset) {
-    I2Cdev::writeWord(devAddr, MPU6050_RA_XG_OFFS_USRH, offset);
+    return writeWord(2, 0x03, *((uint16_t*)&offset));
 }
-
 ICM_20948_Status_e ICM_20948::setYGyroOffset(int16_t offset) {
-    I2Cdev::writeWord(devAddr, MPU6050_RA_YG_OFFS_USRH, offset);
+    return writeWord(2, 0x05, *((uint16_t*)&offset));
 }
 ICM_20948_Status_e ICM_20948::setZGyroOffset(int16_t offset) {
-    I2Cdev::writeWord(devAddr, MPU6050_RA_ZG_OFFS_USRH, offset);
+    return writeWord(2, 0x07, *((uint16_t*)&offset));
+}
+int16_t ICM_20948::getXGyroOffset() {
+    int ret;
+    readWord(2, 0x03, &ret);
+    return *((int16_t*)&ret);
+}
+int16_t ICM_20948::getYGyroOffset() {
+    int ret;
+    readWord(2, 0x05, &ret);
+    return *((int16_t*)&ret);
+}
+int16_t ICM_20948::getZGyroOffset() {
+    int ret;
+    readWord(2, 0x07, &ret);
+    return *((int16_t*)&ret);
+}
+
+int16_t ICM_20948::getXAccelReading() {
+    int16_t ret;
+	readWord(0, 0x2D, &ret);
+    return *((int16_t*)&ret);
+}
+int16_t ICM_20948::getYAccelReading() {
+    int16_t ret;
+	readWord(0, 0x2F, &ret);
+    return *((int16_t*)&ret);
+}
+int16_t ICM_20948::getZAccelReading() {
+    int16_t ret;
+	readWord(0, 0x31, &ret);
+    return *((int16_t*)&ret);
+}
+int16_t ICM_20948::getXGyroReading() {
+    int ret;
+    readWord(0, 0x33, &ret);
+    return *((int16_t*)&ret);
+}
+int16_t ICM_20948::getYGyroReading() {
+    int ret;
+    readWord(0, 0x35, &ret);
+    return *((int16_t*)&ret);
+}
+int16_t ICM_20948::getZGyroReading() {
+    int ret;
+    readWord(0, 0x37, &ret);
+    return *((int16_t*)&ret);
 }
 
 
@@ -1451,41 +1512,65 @@ ICM_20948_Status_e ICM_20948::calibrateGyro(uint8_t Loops ) {
   kP *= x;
   kI *= x;
   
-  PID( 0x43,  kP, kI,  Loops);
+  //read from bank 0 0x33, write to bank 2 0x03
+  ReadRegFunc readValFuncs[3] = {&ICM_20948::getXGyroReading,
+                                 &ICM_20948::getYGyroReading,
+                                 &ICM_20948::getZGyroReading};
+  ReadRegFunc readOffFuncs[3] = {&ICM_20948::getXGyroOffset,
+                                 &ICM_20948::getYGyroOffset,
+                                 &ICM_20948::getZGyroOffset};
+  WriteRegFunc writeOffFuncs[3] = {&ICM_20948::setXGyroOffset,
+                                   &ICM_20948::setYGyroOffset,
+                                   &ICM_20948::setZGyroOffset};
+  PID(readValFuncs, readOffFuncs, writeOffFuncs, kP, kI, Loops, false);
+//   PID(0, 0x33, 2, 0x03, kP, kI,  Loops, false);
 }
 
 /**
   @brief      Fully calibrate Accel from ZERO in about 6-7 Loops 600-700 readings
 */
 ICM_20948_Status_e ICM_20948::calibrateAccel(uint8_t Loops ) {
-
 	float kP = 0.3;
 	float kI = 20;
 	float x;
 	x = (100 - map(Loops, 1, 5, 20, 0)) * .01;
 	kP *= x;
 	kI *= x;
-	PID( 0x3B, kP, kI,  Loops);
+    //read from bank 0 0x2D, write to bank 1, 0x14
+	// PID(0, 0x2D, 1, 0x14, kP, kI,  Loops, true);
+
+  ReadRegFunc readValFuncs[3] = {&ICM_20948::getXAccelReading,
+                                 &ICM_20948::getYAccelReading,
+                                 &ICM_20948::getZAccelReading};
+  ReadRegFunc readOffFuncs[3] = {&ICM_20948::getXAccelOffset,
+                                 &ICM_20948::getYAccelOffset,
+                                 &ICM_20948::getZAccelOffset};
+  WriteRegFunc writeOffFuncs[3] = {&ICM_20948::setXAccelOffset,
+                                   &ICM_20948::setYAccelOffset,
+                                   &ICM_20948::setZAccelOffset};
+  PID(readValFuncs, readOffFuncs, writeOffFuncs, kP, kI, Loops, true);
 }
 
-ICM_20948_Status_e ICM_20948::PID(uint8_t ReadAddress, float kP,float kI, uint8_t Loops){
-	uint8_t SaveAddress = (ReadAddress == 0x3B)?((getDeviceID() < 0x38 )? 0x06:0x77):0x13;
+// ICM_20948_Status_e ICM_20948::PID(uint8_t readBank, uint8_t ReadAddress, uint8_t saveBank, uint8_t SaveAddress, float kP,float kI, uint8_t Loops, bool captureBitZero){
+ICM_20948_Status_e ICM_20948::PID(ReadRegFunc readValF[3], ReadRegFunc readOffF[3], WriteRegFunc writeOffF[3], float kP,float kI, uint8_t Loops, bool captureBitZero){
+	// uint8_t SaveAddress = (ReadAddress == 0x3B)?((getDeviceID() < 0x38 )? 0x06:0x77):0x13;
 
 	int16_t  Data;
 	float Reading;
 	int16_t BitZero[3];
-	uint8_t shift =(SaveAddress == 0x77)?3:2;
+	uint8_t shift = 3;
 	float Error, PTerm, ITerm[3];
 	int16_t eSample;
 	uint32_t eSum ;
 	Serial.write('>');
 	for (int i = 0; i < 3; i++) {
-		readWord(SaveAddress + (i * shift), (uint16_t *)&Data); // reads 1 or more 16 bit integers (Word)
+		// readWord(saveBank, SaveAddress + (i * shift), (uint16_t *)&Data); // reads 1 or more 16 bit integers (Word)
+        Data = (this->*readOffF[i])();
 		Reading = Data;
-		if(SaveAddress != 0x13){
+		if(captureBitZero){
 			BitZero[i] = Data & 1;										 // Capture Bit Zero to properly handle Accelerometer calibration
 			ITerm[i] = ((float)Reading) * 8;
-			} else {
+        } else {
 			ITerm[i] = Reading * 4;
 		}
 	}
@@ -1494,24 +1579,32 @@ ICM_20948_Status_e ICM_20948::PID(uint8_t ReadAddress, float kP,float kI, uint8_
 		for (int c = 0; c < 100; c++) {// 100 PI Calculations
 			eSum = 0;
 			for (int i = 0; i < 3; i++) {
-				readWord(ReadAddress + (i * 2), (uint16_t *)&Data); // reads 1 or more 16 bit integers (Word)
+				// readWord(readBank, ReadAddress + (i * 2), (uint16_t *)&Data); // reads 1 or more 16 bit integers (Word)
+                Data = (this->*readValF[i])();
 				Reading = Data;
-				if ((ReadAddress == 0x3B)&&(i == 2)) Reading -= 16384;	//remove Gravity
+				// if ((ReadAddress == 0x3B)&&(i == 2)) Reading -= 16384;	//remove Gravity
+				if ((captureBitZero)&&(i == 2)) Reading -= 16384;	//remove Gravity
 				Error = -Reading;
 				eSum += abs(Reading);
 				PTerm = kP * Error;
 				ITerm[i] += (Error * 0.001) * kI;				// Integral term 1000 Calculations a second = 0.001
-				if(SaveAddress != 0x13){
+				if(captureBitZero){
 					Data = round((PTerm + ITerm[i] ) / 8);		//Compute PID Output
 					Data = ((Data)&0xFFFE) |BitZero[i];			// Insert Bit0 Saved at beginning
 				} else Data = round((PTerm + ITerm[i] ) / 4);	//Compute PID Output
-				writeWord(SaveAddress + (i * shift), 1, (uint16_t) Data);
+				// writeWord(saveBank, SaveAddress + (i * shift), 1, (uint16_t) Data);
+                (this->*writeOffF[i])(Data);
 			}
 			if((c == 99) && eSum > 1000){						// Error is still to great to continue 
 				c = 0;
 				Serial.write('*');
+                for (int i = 0; i < 3; i++) {
+                    Serial.print((this->*readValF[i])());
+                    Serial.print("\t");
+                }
+                Serial.println(eSum);
 			}
-			if((eSum * ((ReadAddress == 0x3B)?.05: 1)) < 5) eSample++;	// Successfully found offsets prepare to  advance
+			if((eSum * ((captureBitZero)?.05: 1)) < 5) eSample++;	// Successfully found offsets prepare to  advance
 			if((eSum < 100) && (c > 10) && (eSample >= 10)) break;		// Advance to next Loop
 			delay(1);
 		}
@@ -1519,11 +1612,12 @@ ICM_20948_Status_e ICM_20948::PID(uint8_t ReadAddress, float kP,float kI, uint8_
 		kP *= .75;
 		kI *= .75;
 		for (int i = 0; i < 3; i++){
-			if(SaveAddress != 0x13) {
+			if(captureBitZero) {
 				Data = round((ITerm[i] ) / 8);		//Compute PID Output
 				Data = ((Data)&0xFFFE) |BitZero[i];	// Insert Bit0 Saved at beginning
 			} else Data = round((ITerm[i]) / 4);
-			writeWord(SaveAddress + (i * shift), (uint16_t)Data);
+			// writeWord(saveBank, SaveAddress + (i * shift), (uint16_t)Data);
+            (this->*writeOffF[i])(Data);
 		}
 	}
 	resetFIFO();

@@ -6,6 +6,7 @@ ICM_20948_I2C myICM;
 double quats[4];
 double ypr[3];
 
+int16_t offsets[6];
 
 const int pin_PALM = 3;
 const int pin_THUMB = 4;
@@ -138,13 +139,21 @@ void setup() {
 #if OUTPUT_FORMAT == 1
     Serial.println("DMP enabled!");
     Serial.println("Running Calibration");
+    // Serial.println("Board ID:");
+    // int16_t bid;
+    // myICM.readWord(0, 0x00, &bid);
+    // Serial.println(bid, HEX);
+    // myICM.readWord(1, 0x00, &bid);
+    // Serial.println(bid, HEX);
+    // myICM.readWord(0, 0x00, &bid);
+    // Serial.println(bid, HEX);
 #endif
-    myICM.setXGyroOffset(220);
-    myICM.setYGyroOffset(76);
-    myICM.setZGyroOffset(-85);
-    myICM.setZAccelOffset(1788); // 1688 factory default for my test chip
-    myICM.calibrateGyro(6);
-    myICM.calibrateAccel(6);
+    // myICM.setXGyroOffset(220);
+    // myICM.setYGyroOffset(76);
+    // myICM.setZGyroOffset(-85);
+    // myICM.setZAccelOffset(1788); // 1688 factory default for my test chip
+    myICM.calibrateAccel(15);
+    myICM.calibrateGyro(15);
   } else {
     Serial.println("Enable DMP failed!");
     Serial.println("Please check that you have uncommented line 29 (#define ICM_20948_USE_DMP) in ICM_20948_C.h...");
@@ -255,6 +264,7 @@ void loop() {
   icm_20948_DMP_data_t data;
   myICM.readDMPdataFromFIFO(&data);
 
+
   while (myICM.status == ICM_20948_Stat_FIFOMoreDataAvail)
     myICM.readDMPdataFromFIFO(&data);
 
@@ -282,6 +292,14 @@ void loop() {
 
       quatsToYPR(quats, ypr);
     }
+
+
+    offsets[0] = myICM.getXAccelReading();
+    offsets[1] = myICM.getYAccelReading();
+    offsets[2] = myICM.getZAccelReading();
+    offsets[3] = myICM.getXGyroReading();
+    offsets[4] = myICM.getYGyroReading();
+    offsets[5] = myICM.getZGyroReading();
   }
   else {
       #if OUTPUT_FORMAT == 1
@@ -296,6 +314,7 @@ void loop() {
             Serial.write((uint8_t) ringFinger.connection_route);
             Serial.write((uint8_t) pinkyFinger.connection_route);
             Serial.write((byte*)ypr, 12);
+            Serial.write((byte*)offsets, 12);
             Serial.write(3);
             Serial.write(2);
             Serial.write(1);
@@ -320,26 +339,39 @@ void loop() {
             Serial.print("\t");
 
 
-            Serial.print("I:");
-            Serial.print(indexFinger.state);
-            Serial.print(",");
-            Serial.print(indexFinger.connection_route);
-            Serial.print("\t");
-            Serial.print("M:");
-            Serial.print(middleFinger.state);
-            Serial.print(",");
-            Serial.print(middleFinger.connection_route);
-            Serial.print("\t");
-            Serial.print("R:");
-            Serial.print(ringFinger.state);
-            Serial.print(",");
-            Serial.print(ringFinger.connection_route);
-            Serial.print("\t");
-            Serial.print("P:");
-            Serial.print(pinkyFinger.state);
-            Serial.print(",");
-            Serial.print(pinkyFinger.connection_route);
+            // Serial.print("I:");
+            // Serial.print(indexFinger.state);
+            // Serial.print(",");
+            // Serial.print(indexFinger.connection_route);
             // Serial.print("\t");
+            // Serial.print("M:");
+            // Serial.print(middleFinger.state);
+            // Serial.print(",");
+            // Serial.print(middleFinger.connection_route);
+            // Serial.print("\t");
+            // Serial.print("R:");
+            // Serial.print(ringFinger.state);
+            // Serial.print(",");
+            // Serial.print(ringFinger.connection_route);
+            // Serial.print("\t");
+            // Serial.print("P:");
+            // Serial.print(pinkyFinger.state);
+            // Serial.print(",");
+            // Serial.print(pinkyFinger.connection_route);
+            // Serial.print("\t");
+
+            // Serial.println("Offsets:\nXG\tYG\tZG\tXA\tYA\tZA");
+            Serial.print(myICM.getXGyroOffset());
+            Serial.print("\t");
+            Serial.print(myICM.getYGyroOffset());
+            Serial.print("\t");
+            Serial.print(myICM.getZGyroOffset());
+            Serial.print("\t");
+            Serial.print(myICM.getXAccelOffset());
+            Serial.print("\t");
+            Serial.print(myICM.getYAccelOffset());
+            Serial.print("\t");
+            Serial.print(myICM.getZAccelOffset());
 
             Serial.println();
 #endif

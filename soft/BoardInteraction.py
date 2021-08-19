@@ -59,7 +59,7 @@ class BoardInteractor(ThreadExtension.StoppableThread):
         self.publishOutput = publishOutput
         self.plotOutput = plotOutput
 
-        self.packetSize = 20  # bytes
+        self.packetSize = 32  # bytes
         self.FINGER_THUMB_CON = 1
         self.FINGER_PALM_CON = 2
 
@@ -168,14 +168,15 @@ class BoardInteractor(ThreadExtension.StoppableThread):
     def alignSerialInput(self):
         print("Aligning serial input")
         while True:
-            vals = np.array(struct.unpack('16b', self._board.read(16)))
+            vals = np.array(struct.unpack(str(self.packetSize) +
+                            'b', self._board.read(self.packetSize)))
+            print(vals)
             if vals[-1] == 0 and vals[-2] == 1 and vals[-3] == 2 and vals[-4] == 3:
                 break
             # print(vals)
             # if np.count_nonzero(vals) == len(vals) - 4 and vals[-1] == 0 and vals[-2] == 0 and vals[-3] == 0 and vals[-4] == 0:
             #     break
             # vals = np.array(struct.unpack('4f', self._board.read(16)))
-            print(vals)
             # if np.count_nonzero(vals) == len(vals) - 1 and vals[-1] == 0:
             # break
             # if np.count_nonzero(vals) == len(vals) - 1:
@@ -192,10 +193,12 @@ class BoardInteractor(ThreadExtension.StoppableThread):
         dat = self._board.read(self.packetSize)
         while self._board.in_waiting >= self.packetSize:
             dat = self._board.read(self.packetSize)
-        vals = struct.unpack('bbbb4f', dat)
-        valtest = struct.unpack('bbbbfffbbbb', dat)
-        if not (valtest[-1] == 0 and valtest[-2] == 1 and valtest[-3] == 2 and valtest[-4] == 3):
-            print(valtest)
+
+        vals = struct.unpack('4b3f6h4b', dat)
+        # vals = struct.unpack('bbbb4f', dat)
+        # valtest = struct.unpack('bbbbfffbbbb', dat)
+        if not (vals[-1] == 0 and vals[-2] == 1 and vals[-3] == 2 and vals[-4] == 3):
+            print(vals)
             return 1
         gyrovals = np.array(vals[4:7])
         p = 3.1415926
@@ -208,6 +211,7 @@ class BoardInteractor(ThreadExtension.StoppableThread):
             self.plotVals = np.roll(self.plotVals, -1, axis=1)
             self.plotVals[0:3, -1] = gyrovals[0:3]
             # self.plotVals[3:6, -1] = vals[4:7]
+            print(vals[7:13])
 
         self._connections = [False] * 16
         if vals[0] == 1:

@@ -16,6 +16,7 @@ A C++ interface to the ICM-20948
 
 #define ICM_20948_ARD_UNUSED_PIN 0xFF
 
+
 // Base
 class ICM_20948
 {
@@ -24,6 +25,9 @@ private:
   bool _printDebug = false; //Flag to print the serial commands we are sending to the Serial port for debug
 
   const uint8_t MAX_MAGNETOMETER_STARTS = 10; // This replaces maxTries
+
+  typedef int16_t(ICM_20948::*ReadRegFunc)();
+  typedef ICM_20948_Status_e(ICM_20948::*WriteRegFunc)(int16_t);
 
 protected:
   ICM_20948_Device_t _device;
@@ -216,18 +220,32 @@ public:
 
 
   //Bill Croughan adding these calibration functions on 2021-08-18
-  // (just copying them from the MPU6050 library)
+  //most copied over from MPU 6050 library
   ICM_20948_Status_e setXGyroOffset(int16_t offset);
   ICM_20948_Status_e setYGyroOffset(int16_t offset);
   ICM_20948_Status_e setZGyroOffset(int16_t offset);
+  ICM_20948_Status_e setXAccelOffset(int16_t offset);
+  ICM_20948_Status_e setYAccelOffset(int16_t offset);
   ICM_20948_Status_e setZAccelOffset(int16_t offset);
+  int16_t getXGyroOffset();
+  int16_t getYGyroOffset();
+  int16_t getZGyroOffset();
+  int16_t getXAccelOffset();
+  int16_t getYAccelOffset();
+  int16_t getZAccelOffset();
+  int16_t getXGyroReading();
+  int16_t getYGyroReading();
+  int16_t getZGyroReading();
+  int16_t getXAccelReading();
+  int16_t getYAccelReading();
+  int16_t getZAccelReading();
   // Calibration Routines
   ICM_20948_Status_e calibrateGyro(uint8_t Loops = 15); // Fine tune after setting offsets with less Loops.
   ICM_20948_Status_e calibrateAccel(uint8_t Loops = 15);// Fine tune after setting offsets with less Loops.
-  ICM_20948_Status_e PID(uint8_t ReadAddress, float kP,float kI, uint8_t Loops);  // Does the math
+  ICM_20948_Status_e PID(ReadRegFunc readValF[3], ReadRegFunc readOffF[3], WriteRegFunc writeOffF[3], float kP,float kI, uint8_t Loops, bool captureBitZero);  // Does the math
   //R/W
-  ICM_20948_Status_e writeWord(uint8_t reg, uint16_t data);
-  ICM_20948_Status_e readWord(uint8_t reg, uint16_t *data);
+  ICM_20948_Status_e writeWord(uint8_t bank, uint8_t reg, uint16_t data);
+  ICM_20948_Status_e readWord(uint8_t bank, uint8_t reg, uint16_t *data);
 };
 
 // I2C
