@@ -1,4 +1,4 @@
-#include "ICM_20948.h"
+#include "ICM_20948_WDC.h"
 
 #define OUTPUT_FORMAT 0
 
@@ -137,7 +137,14 @@ void setup() {
   if (success) {
 #if OUTPUT_FORMAT == 1
     Serial.println("DMP enabled!");
+    Serial.println("Running Calibration");
 #endif
+    myICM.setXGyroOffset(220);
+    myICM.setYGyroOffset(76);
+    myICM.setZGyroOffset(-85);
+    myICM.setZAccelOffset(1788); // 1688 factory default for my test chip
+    myICM.calibrateGyro(6);
+    myICM.calibrateAccel(6);
   } else {
     Serial.println("Enable DMP failed!");
     Serial.println("Please check that you have uncommented line 29 (#define ICM_20948_USE_DMP) in ICM_20948_C.h...");
