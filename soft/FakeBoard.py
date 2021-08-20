@@ -114,7 +114,7 @@ class FakeBoard(QWidget):
 
         if axis[0] == "L":
             pub.sendMessage('LGyro', roll=self._lroll, pitch=self._lpitch, yaw=self._lyaw,
-                            rollChanged=axis == "LR", pitchChanged=axis == "LP", yawChanged="LY")
+                            rollChanged=axis == "LR", pitchChanged=axis == "LP", yawChanged=axis == "LY")
         else:
             pub.sendMessage('RGyro', roll=self._rroll, pitch=self._rpitch, yaw=self._ryaw,
                             rollChanged=axis == "RR", pitchChanged=axis == "RP", yawChanged=axis == "RY")

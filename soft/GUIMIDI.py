@@ -10,7 +10,7 @@ from FakeBoard import FakeBoard
 from RealBoard import RealBoard
 import ThreadExtension
 from MIDI import M1, ToyMidiMap
-from ControlSurface import C1
+from Drag import DragMap
 
 
 class ConfigWindow(QWidget):
@@ -67,7 +67,8 @@ class ConfigWindow(QWidget):
         self.midiHandlerOptions = ["None",
                                    "M1",
                                    "ToyMidiMap",
-                                   "ControlSurface"]
+                                   "Drag"
+                                   ]
 
         self.inputOptions = ["None",
                              "Fake input",
@@ -173,8 +174,8 @@ class ConfigWindow(QWidget):
             self.midiHandler = M1(self.midiout)
         elif handler == "ToyMidiMap":
             self.midiHandler = ToyMidiMap(self.midiout)
-        elif handler == "ControlSurface":
-            self.midiHandler = C1(self.midiout)
+        elif handler == "Drag":
+            self.midiHandler = DragMap(self.midiout)
         elif handler == "None":
             self.midiHandler = None
             self.handlerWidgetContainer.removeWidget(self.handlerWidget)
