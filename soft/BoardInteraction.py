@@ -180,7 +180,6 @@ class BoardInteractor(ThreadExtension.StoppableThread):
                     break
 
     def parseBoardMsg(self):
-        # TODO Read from other board also
         dat = self._board.read(self.packetSize)
         while self._board.in_waiting >= self.packetSize:
             dat = self._board.read(self.packetSize)

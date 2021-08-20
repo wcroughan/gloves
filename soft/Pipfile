@@ -12,6 +12,7 @@ numpy = "*"
 python-rtmidi = "*"
 matplotlib = "*"
 pyqt5 = "*"
+cython = "*"
 
 [dev-packages]
 
