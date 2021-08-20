@@ -34,14 +34,19 @@ class MIDIMapping:
     def stopNote(self, pitch=60):
         self.midiport.send_message([NOTE_OFF, pitch, 0])
 
-    def cc(self, cc=0, value=0):
+    def cc(self, cc=0, value=0, channel=0):
         if value < 0:
             # print("Correcting cc value {} to 0".format(value))
             value = 0
         if value > 127:
             # print("Correcting cc value {} to 127".format(value))
             value = 127
-        self.midiport.send_message([CONTROL_CHANGE, cc, value])
+        if channel < 0:
+            channel = 0
+        if channel > 15:
+            channel = 15
+        ch = CONTROL_CHANGE | channel
+        self.midiport.send_message([ch, cc, value])
 
     def pb(self, value=8192):
         self.midiport.send_message([PITCH_BEND, value & 0x7f, (value >> 7) & 0x7f])

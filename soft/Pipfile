@@ -12,7 +12,8 @@ numpy = "*"
 python-rtmidi = "*"
 matplotlib = "*"
 pyqt5 = "*"
-cython = "*"
+pylive = {editable = true, path = "./../../pylive"}
+python-osc = "*"
 
 [dev-packages]
 
