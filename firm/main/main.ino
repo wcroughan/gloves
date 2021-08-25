@@ -19,6 +19,7 @@ const int CONNECTION_ROUTE_UNKNOWN = 0;
 const int CONNECTION_ROUTE_THUMB = 1;
 const int CONNECTION_ROUTE_PALM = 2;
 const int FINGER_CONNECTION_DELAY = 20;
+// TODO allow for both to be connected
 
 typedef struct Finger {
     int pin = 0;
