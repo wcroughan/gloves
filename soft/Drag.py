@@ -1,4 +1,5 @@
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QCheckBox, QSpinBox, QComboBox
+from PyQt5.QtGui import QPixmap, QPainter
 from rtmidi.midiconstants import NOTE_OFF, NOTE_ON, CONTROL_CHANGE, PITCH_BEND
 import numpy as np
 
@@ -83,6 +84,25 @@ class DragControl:
         self.yfunc(self.y_fval_output)
 
 
+class DragControlWidget(QWidget):
+    def __init__(self):
+        super().__init__()
+
+        self.label = QLabel()
+        canvas = QPixmap(300, 300)
+        self.label.setPixmap(canvas)
+        layout = QHBoxLayout()
+        layout.addWidget(self.label)
+        self.setLayout(layout)
+
+        self.drawSomething()
+
+    def drawSomething(self):
+        pt = QPainter(self.label.pixmap())
+        pt.drawLine(10, 10, 300, 200)
+        pt.end()
+
+
 class DragMap(MIDIMapping):
     """
     uses the supplied midi port for cc and other midi messages
@@ -120,9 +140,13 @@ class DragMap(MIDIMapping):
 
         self.initWidget()
         self.initControls()
+        self.widget.update()
 
     def initWidget(self):
         layout = QVBoxLayout()
+
+        cw = DragControlWidget()
+        layout.addWidget(cw)
 
         l1 = QHBoxLayout()
         l1.addWidget(QLabel("Right Roll"))
