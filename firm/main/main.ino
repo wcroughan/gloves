@@ -1,6 +1,6 @@
 #include "ICM_20948_WDC.h"
 
-#define OUTPUT_FORMAT 0
+#define OUTPUT_FORMAT 1
 
 ICM_20948_I2C myICM;
 double quats[4];
@@ -15,11 +15,12 @@ const int pin_MIDDLE = 6;
 const int pin_RING = 7;
 const int pin_PINKY = 8;
 
-const int CONNECTION_ROUTE_UNKNOWN = 0;
+const int CONNECTION_ROUTE_NONE = 0;
 const int CONNECTION_ROUTE_THUMB = 1;
 const int CONNECTION_ROUTE_PALM = 2;
+const int CONNECTION_ROUTE_BOTH = 3;
+const int CONNECTION_ROUTE_UNKNOWN = 4;
 const int FINGER_CONNECTION_DELAY = 20;
-// TODO allow for both to be connected
 
 typedef struct Finger {
     int pin = 0;
@@ -186,7 +187,7 @@ void updateFinger(struct Finger *f, unsigned long mils) {
                 delay(1);
                 int thumb = digitalRead(f->pin);
                 digitalWrite(pin_THUMB, LOW);
-                f->connection_route = palm ? CONNECTION_ROUTE_PALM : (thumb ? CONNECTION_ROUTE_THUMB : CONNECTION_ROUTE_UNKNOWN);
+                f->connection_route = palm ? (thumb ? CONNECTION_ROUTE_BOTH : CONNECTION_ROUTE_PALM) : (thumb ? CONNECTION_ROUTE_THUMB : CONNECTION_ROUTE_NONE);
             } else {
                 f->connection_route = CONNECTION_ROUTE_UNKNOWN;
             }

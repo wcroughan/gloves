@@ -1,5 +1,6 @@
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QCheckBox, QSpinBox, QComboBox
-from PyQt5.QtGui import QPixmap, QPainter
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QCheckBox, QSpinBox, QComboBox, QSizePolicy
+from PyQt5.QtGui import QPixmap, QPainter, QBrush, QColor, QPen
+from PyQt5.QtCore import QRect, Qt, QSize
 from rtmidi.midiconstants import NOTE_OFF, NOTE_ON, CONTROL_CHANGE, PITCH_BEND
 import numpy as np
 
@@ -88,19 +89,25 @@ class DragControlWidget(QWidget):
     def __init__(self):
         super().__init__()
 
-        self.label = QLabel()
-        canvas = QPixmap(300, 300)
-        self.label.setPixmap(canvas)
-        layout = QHBoxLayout()
-        layout.addWidget(self.label)
-        self.setLayout(layout)
+        self.guiSize = 100
+        self.setSizePolicy(QSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed))
 
-        self.drawSomething()
+    def paintEvent(self, event):
+        qp = QPainter(self)
+        brush = QBrush()
+        brush.setColor(QColor('black'))
+        brush.setStyle(Qt.SolidPattern)
+        rect = QRect(0, 0, qp.device().width(), qp.device().height())
+        qp.fillRect(rect, brush)
 
-    def drawSomething(self):
-        pt = QPainter(self.label.pixmap())
-        pt.drawLine(10, 10, 300, 200)
-        pt.end()
+        pen = QPen()
+        pen.setWidth(3)
+        pen.setColor(QColor('white'))
+        qp.setPen(pen)
+        qp.drawLine(10, 30, 100, 200)
+
+    def sizeHint(self):
+        return QSize(self.guiSize, self.guiSize)
 
 
 class DragMap(MIDIMapping):
