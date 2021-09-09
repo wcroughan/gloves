@@ -208,17 +208,29 @@ class BoardInteractor(ThreadExtension.StoppableThread):
             self._connections[Fingers['RIT'].value] = True
         elif vals[0] == 2:
             self._connections[Fingers['RIP'].value] = True
+        elif vals[0] == 3:
+            self._connections[Fingers['RIP'].value] = True
+            self._connections[Fingers['RIT'].value] = True
         if vals[1] == 1:
             self._connections[Fingers['RMT'].value] = True
         elif vals[1] == 2:
             self._connections[Fingers['RMP'].value] = True
+        elif vals[1] == 3:
+            self._connections[Fingers['RMP'].value] = True
+            self._connections[Fingers['RMT'].value] = True
         if vals[2] == 1:
             self._connections[Fingers['RRT'].value] = True
         elif vals[2] == 2:
             self._connections[Fingers['RRP'].value] = True
+        elif vals[2] == 3:
+            self._connections[Fingers['RRT'].value] = True
+            self._connections[Fingers['RRP'].value] = True
         if vals[3] == 1:
             self._connections[Fingers['RPT'].value] = True
         elif vals[3] == 2:
+            self._connections[Fingers['RPP'].value] = True
+        elif vals[3] == 3:
+            self._connections[Fingers['RPT'].value] = True
             self._connections[Fingers['RPP'].value] = True
 
         return 0
