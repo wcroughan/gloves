@@ -79,6 +79,7 @@ class ConfigWindow(QWidget):
         self.initMIDI()
 
         self.midiHandlerComboBox.setCurrentIndex(3)
+        self.inputComboBox.setCurrentIndex(1)
 
     def initUI(self):
         self.setWindowTitle("MIDI Glove Config")
