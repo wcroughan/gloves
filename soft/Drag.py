@@ -152,8 +152,8 @@ class DragMap(MIDIMapping):
     def initWidget(self):
         layout = QVBoxLayout()
 
-        cw = DragControlWidget()
-        layout.addWidget(cw)
+        # cw = DragControlWidget()
+        # layout.addWidget(cw)
 
         l1 = QHBoxLayout()
         l1.addWidget(QLabel("Right Roll"))
