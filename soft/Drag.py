@@ -54,7 +54,7 @@ class DragControl:
 
     def activateControl(self, roll, pitch, yaw, side):
         # expecting these to be in the 0.0-1.0 range
-        print("Activating with params RPY:{},{},{}, {}".format(roll, pitch, yaw, side))
+        # print("Activating with params RPY:{},{},{}, {}".format(roll, pitch, yaw, side))
         if side == "L":
             self.leftActive = True
         elif side == "R":
@@ -66,7 +66,7 @@ class DragControl:
         # self.y_start = yaw
 
     def deactivateControl(self, side):
-        print("Deactivating side {}".format(side))
+        # print("Deactivating side {}".format(side))
         if side == "L":
             self.leftActive = False
         elif side == "R":
@@ -147,7 +147,7 @@ class DragControlXYPadWidget(QWidget):
         y1 = self.pad + self.lineLen + (self.guiSize - 2 * self.pad - 2 * self.lineLen) * self.y
         # a = np.interp(self.z, [0.0, 1.0], [self.a1, self.a2])
         a = self.aFromZ(self.z)
-        print("{}->{}".format(self.z, a))
+        # print("{}->{}".format(self.z, a))
         x2 = x1 + self.lineLen * np.cos(a)
         y2 = y1 - self.lineLen * np.sin(a)
         qp.drawLine(x1, y1, x2, y2)
@@ -389,4 +389,8 @@ class DragMap(MIDIMapping):
             pitch = self.lp_val
             yaw = self.ly_val
 
-        self.controlDict[finger[1:]].activateControl(roll, pitch, yaw, finger[0])
+        print("(de)Activating {} ({}, {}, {}, {})".format(finger[1:], roll, pitch, yaw, finger[0]))
+        if con:
+            self.controlDict[finger[1:]].activateControl(roll, pitch, yaw, finger[0])
+        else:
+            self.controlDict[finger[1:]].deactivateControl(finger[0])
