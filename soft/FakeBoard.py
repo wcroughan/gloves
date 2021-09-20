@@ -1,6 +1,7 @@
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSlider, QPushButton, QGridLayout, QButtonGroup, QRadioButton
 from PyQt5.QtCore import Qt, QTimer
 from pubsub import pub
+import random
 
 
 class FakeBoard(QWidget):
@@ -22,6 +23,11 @@ class FakeBoard(QWidget):
         self._ryaw = 0.5
 
         self.initUI()
+
+        if False:
+            self.dataTimer = QTimer()
+            self.dataTimer.timeout.connect(self.sendAData)
+            self.dataTimer.start(100)
 
     def initUI(self):
         self.setWindowTitle("Gloves!")
@@ -119,6 +125,10 @@ class FakeBoard(QWidget):
             pub.sendMessage('RGyro', roll=self._rroll, pitch=self._rpitch, yaw=self._ryaw,
                             rollChanged=axis == "RR", pitchChanged=axis == "RP", yawChanged=axis == "RY")
         # print(axis, val)
+
+    def sendAData(self):
+        print("Sending Random Data")
+        self.gyrovalChanged("LR", random.random())
 
 
 class FakeGyroWidget(QWidget):

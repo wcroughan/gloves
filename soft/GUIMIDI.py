@@ -1,10 +1,11 @@
 import sys
-from PyQt5.QtWidgets import QWidget, QApplication, QVBoxLayout, QHBoxLayout, QLabel, QCheckBox, QSpinBox, QSlider, QPushButton, QComboBox
+from PyQt5.QtWidgets import QWidget, QApplication, QVBoxLayout, QHBoxLayout, QLabel, QCheckBox, QSpinBox, QSlider, QPushButton, QComboBox, QDialog
 from PyQt5.QtCore import Qt, QTimer
 from rtmidi.midiutil import open_midioutput
 from pubsub import pub
 import time
 import numpy as np
+from collections import deque
 
 from FakeBoard import FakeBoard
 from RealBoard import RealBoard
@@ -101,47 +102,21 @@ class ConfigWindow(QWidget):
         l7.addWidget(self.inputComboBox)
         layout.addLayout(l7)
 
-        # TODO this logic should all be in the RealBoard class
         l6 = QHBoxLayout()
-        l6.addWidget(QLabel("Left"))
-        centerButton = QPushButton("Set Center")
-        centerButton.clicked.connect(lambda: self.centerbtn(3, "L"))
-        l6.addWidget(centerButton)
-        centerYawButton = QPushButton("Center Yaw")
-        centerYawButton.clicked.connect(lambda: self.centerYaw("L"))
-        l6.addWidget(centerYawButton)
-        calibRollButton = QPushButton("Calibrate Roll")
-        calibRollButton.clicked.connect(lambda: self.calibrollbtn("L"))
-        l6.addWidget(calibRollButton)
-        calibPitchButton = QPushButton("Calibrate Pitch")
-        calibPitchButton.clicked.connect(lambda: self.calibpitchbtn("L"))
-        l6.addWidget(calibPitchButton)
-        calibYawButton = QPushButton("Calibrate Yaw")
-        calibYawButton.clicked.connect(lambda: self.calibyawbtn("L"))
-        l6.addWidget(calibYawButton)
-        self.calibLabel_l = QLabel("")
-        l6.addWidget(self.calibLabel_l)
-        layout.addLayout(l6)
-
-        l6 = QHBoxLayout()
-        l6.addWidget(QLabel("Right"))
-        centerButton = QPushButton("Set Center")
-        centerButton.clicked.connect(lambda: self.centerbtn(3, "R"))
-        l6.addWidget(centerButton)
-        centerYawButton = QPushButton("Center Yaw")
-        centerYawButton.clicked.connect(lambda: self.centerYaw("R"))
-        l6.addWidget(centerYawButton)
-        calibRollButton = QPushButton("Calibrate Roll")
-        calibRollButton.clicked.connect(lambda: self.calibrollbtn("R"))
-        l6.addWidget(calibRollButton)
-        calibPitchButton = QPushButton("Calibrate Pitch")
-        calibPitchButton.clicked.connect(lambda: self.calibpitchbtn("R"))
-        l6.addWidget(calibPitchButton)
-        calibYawButton = QPushButton("Calibrate Yaw")
-        calibYawButton.clicked.connect(lambda: self.calibyawbtn("R"))
-        l6.addWidget(calibYawButton)
-        self.calibLabel_r = QLabel("")
-        l6.addWidget(self.calibLabel_r)
+        self.leftCalibButton = QPushButton("Calib Left")
+        self.leftCalibButton.clicked.connect(lambda: self.calibButton("L"))
+        l6.addWidget(self.leftCalibButton)
+        lCenterYawButton = QPushButton("Center Left Yaw")
+        lCenterYawButton.clicked.connect(lambda: self.centerYaw("L"))
+        lCenterYawButton.setEnabled(False)
+        l6.addWidget(lCenterYawButton)
+        self.rightCalibButton = QPushButton("Calib Right")
+        self.rightCalibButton.clicked.connect(lambda: self.calibButton("R"))
+        l6.addWidget(self.rightCalibButton)
+        rCenterYawButton = QPushButton("Center Right Yaw")
+        rCenterYawButton.clicked.connect(lambda: self.centerYaw("R"))
+        rCenterYawButton.setEnabled(False)
+        l6.addWidget(rCenterYawButton)
         layout.addLayout(l6)
 
         l4 = QHBoxLayout()
@@ -242,6 +217,63 @@ class ConfigWindow(QWidget):
         else:
             self.rycenter = self.ryval_raw
 
+    def calibButton(self, side):
+        # TODO go from center to roll calib to pitch to yaw and then back through again. Record all rpy coords
+        # and then fit a line to each axis, and in the future project onto those three lines
+        print("Initiating calibration on side {}".format(side))
+        self.leftCalibButton.setEnabled(False)
+        self.rightCalibButton.setEnabled(False)
+        if side == "L":
+            side = "Left"
+            self.calibActiveCenterLeft = True
+        else:
+            side = "Right"
+            self.calibActiveCenterRight = True
+        self.calibDialog = QDialog()
+        lbl1 = QLabel("Calibrating {} glove".format(side))
+        self.calibDialogLabel = QLabel("Move to center")
+        l = QVBoxLayout()
+        l.addWidget(lbl1)
+        l.addWidget(self.calibDialogLabel)
+        self.calibDialog.setLayout(l)
+
+        QTimer.singleShot(2000, lambda: self.calibRollPhase(1))
+
+        self.calibDialog.setModal(False)
+        self.calibDialog.exec_()
+
+    def dialogUpdateSeries(self, series, delay):
+        if len(series) == 0:
+            return
+
+        s = series.pop()
+        self.calibDialogLabel.setText(s)
+        QTimer.singleShot(delay, lambda: self.dialogUpdateSeries(series, delay))
+
+    def calibRollPhase(self, nRepeats):
+        if self.calibActiveCenterLeft:
+            self.calibActiveRollLeft = True
+            self.calibActiveCenterLeft = False
+        else:
+            self.calibActiveRollRight = True
+            self.calibActiveCenterRight = False
+        print("Initiating calib roll phase with {} repeats".format(nRepeats))
+        if nRepeats <= 0:
+            self.calibActiveRollLeft = False
+            self.calibActiveRollRight = False
+            self.leftCalibButton.setEnabled(True)
+            self.rightCalibButton.setEnabled(True)
+            self.calibDialog.done(0)
+        else:
+            cmds = deque([])
+            cmds.appendleft("Roll left")
+            cmds.appendleft("Roll right")
+            cmds.appendleft("Roll left")
+            cmds.appendleft("Roll right")
+            cmds.appendleft("Roll center")
+            self.dialogUpdateSeries(cmds, 1000)
+            QTimer.singleShot(1000 * (len(cmds)+1), lambda: self.calibRollPhase(nRepeats - 1))
+
     def calibrollbtn(self, side):
         if side == "L":
             self.lrminval = self.lrval - 0.01
@@ -336,6 +368,7 @@ class ConfigWindow(QWidget):
         if self.calibActiveRollLeft:
             self.lrminval = min(self.lrminval, self.lrval)
             self.lrmaxval = max(self.lrmaxval, self.lrval)
+            print(self.lrval)
         else:
             self.lrval = np.interp(self.lrval, [self.lrminval, 0.5, self.lrmaxval], [0.0, 0.5, 1.0])
         if self.calibActivePitchLeft:

@@ -1,19 +1,22 @@
 #include "ICM_20948_WDC.h"
 
-#define OUTPUT_FORMAT 1
+#define OUTPUT_FORMAT 0
 
+// Address pin should be connected to ground
 ICM_20948_I2C myICM;
 double quats[4];
 double ypr[3];
 
 int16_t offsets[6];
 
-const int pin_PALM = 3;
-const int pin_THUMB = 4;
-const int pin_INDEX = 5;
-const int pin_MIDDLE = 6;
-const int pin_RING = 7;
-const int pin_PINKY = 8;
+// note currently thumb back and palm aren't differentiated at all. SHould eventually differentiate them and then on python side reunite if desired
+const int pin_PALM = 18;
+const int pin_THUMB = 19;
+const int pin_INDEX = 14;
+const int pin_MIDDLE = 16;
+const int pin_RING = 17;
+const int pin_PINKY = 2;
+const int pin_THUMB_BACK = 15;
 
 const int CONNECTION_ROUTE_NONE = 0;
 const int CONNECTION_ROUTE_THUMB = 1;
@@ -68,8 +71,10 @@ void setup() {
     }
 
     pinMode(pin_PALM, OUTPUT);
+    pinMode(pin_THUMB_BACK, OUTPUT);
     pinMode(pin_THUMB, OUTPUT);
     digitalWrite(pin_PALM, LOW);
+    digitalWrite(pin_THUMB_BACK, LOW);
     digitalWrite(pin_THUMB, LOW);
     pinMode(pin_INDEX, INPUT_PULLUP);
     pinMode(pin_MIDDLE, INPUT_PULLUP);
@@ -180,9 +185,11 @@ void updateFinger(struct Finger *f, unsigned long mils) {
             if (con) {
                 //newly connected, thumb or palm?
                 digitalWrite(pin_PALM, HIGH);
+                digitalWrite(pin_THUMB_BACK, HIGH);
                 delay(1);
                 int palm = digitalRead(f->pin);
                 digitalWrite(pin_PALM, LOW);
+                digitalWrite(pin_THUMB_BACK, LOW);
                 digitalWrite(pin_THUMB, HIGH);
                 delay(1);
                 int thumb = digitalRead(f->pin);
