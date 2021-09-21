@@ -7,6 +7,7 @@ import time
 import numpy as np
 from collections import deque
 from sklearn.decomposition import FastICA
+import matplotlib.pyplot as plt
 
 
 from FakeBoard import FakeBoard
@@ -28,8 +29,12 @@ class CalibrationDialog(QDialog):
 
         self.TIME_BETWEEN_SAMPLE = 25  # ms
         self.TRIALS_PER_AXIS = 2
-        self.ITERATIONS = 2
-        self.SAMPLES_PER_TRIAL = 50
+        if False:
+            self.ITERATIONS = 2
+            self.SAMPLES_PER_TRIAL = 40
+        else:
+            self.ITERATIONS = 1
+            self.SAMPLES_PER_TRIAL = 20
         self.TIME_PER_TRIAL = self.TIME_BETWEEN_SAMPLE * self.SAMPLES_PER_TRIAL
 
         self.SAMPLES_PER_AXIS = self.TIME_PER_TRIAL * \
@@ -108,6 +113,16 @@ class CalibrationDialog(QDialog):
         self.sampleBuffer = self.sampleBuffer[:, 0:self.samplei]
         self.centerBuffer = self.centerBuffer[:, 0:self.centeri]
         self.actionLabel.setText("Calibrating, please wait...")
+
+        self.center = np.mean(self.centerBuffer, axis=1)
+        print(self.center)
+        print(self.sampleBuffer)
+        self.sampleBuffer = (self.sampleBuffer.T - self.center).T
+
+        fig = plt.figure()
+        ax = fig.add_subplot(projection='3d')
+        ax.scatter(self.sampleBuffer[0, :], self.sampleBuffer[1, :], self.sampleBuffer[2, :])
+        plt.show()
 
         self.ica = FastICA()
         newcoords = self.ica.fit_transform(self.sampleBuffer)
