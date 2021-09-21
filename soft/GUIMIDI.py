@@ -14,6 +14,53 @@ from MIDI import M1, ToyMidiMap
 from Drag import DragMap
 
 
+class CalibrationDialog(QDialog):
+    def __init__(self, side):
+        super().__init__()
+
+        self.setModal(False)
+        self.side = side
+
+        self.initUI()
+        self.initBoardComs()
+
+        self.TIME_BETWEEN_SAMPLE = 25  # ms
+        self.TRIALS_PER_AXIS = 2
+        self.ITERATIONS = 2
+        self.TIME_PER_TRIAL = 1000
+
+        self.SAMPLES_PER_AXIS = self.TIME_PER_TRIAL / self.TIME_BETWEEN_SAMPLE * \
+            (self.TRIALS_PER_AXIS * self.ITERATIONS * 2 + 1)
+
+        self.rollSamples = np.nan((3, self.SAMPLES_PER_AXIS))
+
+        QTimer.singleShot(1000, self.startCalibration)
+
+    def initUI(self):
+        lbl1 = QLabel("Calibrating {} glove".format(self.side))
+        self.actionLabel = QLabel("Move to center")
+        layout = QVBoxLayout()
+        layout.addWidget(lbl1)
+        layout.addWidget(self.actionLabel)
+        self.setLayout(layout)
+
+    def initBoardComs(self):
+        pub.subscribe(self.handleFingerConnection, 'FingerConnection')
+        if self.side == "L":
+            pub.subscribe(self.handleGyroData, 'LGyro')
+        else:
+            pub.subscribe(self.handleGyroData, 'RGyro')
+
+    def startCalibration(self):
+        pass
+
+    def handleFingerConnection(self, con, finger):
+        pass
+
+    def handleGyroData(self, roll, pitch, yaw, rollChanged, pitchChanged, yawChanged):
+        pass
+
+
 class ConfigWindow(QWidget):
     """
     """
@@ -64,6 +111,9 @@ class ConfigWindow(QWidget):
         self.calibActiveRollLeft = False
         self.calibActivePitchLeft = False
         self.calibActiveYawLeft = False
+
+        # None or (Roll|Pitch|Yaw|Center) (Right|Left)
+        self.calibActive = "None"
 
         self.midiHandlerOptions = ["None",
                                    "M1",
@@ -237,7 +287,12 @@ class ConfigWindow(QWidget):
         l.addWidget(self.calibDialogLabel)
         self.calibDialog.setLayout(l)
 
-        QTimer.singleShot(2000, lambda: self.calibRollPhase(1))
+        self.calibNextAxis = dict()
+        self.calibNextAxis["Roll"] = "Pitch"
+        self.calibNextAxis["Pitch"] = "Yaw"
+        self.calibNextAxis["Yaw"] = "Roll"
+
+        QTimer.singleShot(2000, lambda: self.calibPhase(1, "Roll"))
 
         self.calibDialog.setModal(False)
         self.calibDialog.exec_()
@@ -250,7 +305,7 @@ class ConfigWindow(QWidget):
         self.calibDialogLabel.setText(s)
         QTimer.singleShot(delay, lambda: self.dialogUpdateSeries(series, delay))
 
-    def calibRollPhase(self, nRepeats):
+    def calibPhase(self, nRepeats, axis):
         if self.calibActiveCenterLeft:
             self.calibActiveRollLeft = True
             self.calibActiveCenterLeft = False
@@ -272,7 +327,7 @@ class ConfigWindow(QWidget):
             cmds.appendleft("Roll right")
             cmds.appendleft("Roll center")
             self.dialogUpdateSeries(cmds, 1000)
-            QTimer.singleShot(1000 * (len(cmds)+1), lambda: self.calibRollPhase(nRepeats - 1))
+            QTimer.singleShot(1000 * (len(cmds)+1), lambda: self.calibPhase(nRepeats - 1))
 
     def calibrollbtn(self, side):
         if side == "L":
