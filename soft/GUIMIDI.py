@@ -6,6 +6,8 @@ from pubsub import pub
 import time
 import numpy as np
 from collections import deque
+from sklearn.decomposition import FastICA
+
 
 from FakeBoard import FakeBoard
 from RealBoard import RealBoard
@@ -18,7 +20,7 @@ class CalibrationDialog(QDialog):
     def __init__(self, side):
         super().__init__()
 
-        self.setModal(False)
+        # self.setModal(False)
         self.side = side
 
         self.initUI()
@@ -27,12 +29,23 @@ class CalibrationDialog(QDialog):
         self.TIME_BETWEEN_SAMPLE = 25  # ms
         self.TRIALS_PER_AXIS = 2
         self.ITERATIONS = 2
-        self.TIME_PER_TRIAL = 1000
+        self.SAMPLES_PER_TRIAL = 50
+        self.TIME_PER_TRIAL = self.TIME_BETWEEN_SAMPLE * self.SAMPLES_PER_TRIAL
 
-        self.SAMPLES_PER_AXIS = self.TIME_PER_TRIAL / self.TIME_BETWEEN_SAMPLE * \
-            (self.TRIALS_PER_AXIS * self.ITERATIONS * 2 + 1)
+        self.SAMPLES_PER_AXIS = self.TIME_PER_TRIAL * \
+            (self.TRIALS_PER_AXIS * 2 + 1) * self.ITERATIONS
 
-        self.rollSamples = np.nan((3, self.SAMPLES_PER_AXIS))
+        self.NUM_CENTER_SAMPLES = self.ITERATIONS * 3
+
+        self.sampleBuffer = np.empty((3, self.SAMPLES_PER_AXIS))
+        self.centerBuffer = np.empty((3, self.NUM_CENTER_SAMPLES))
+        self.sampleBuffer[:] = np.nan
+        self.centerBuffer[:] = np.nan
+        self.captureNextCenter = False
+        self.centeri = 0
+
+        self.samplei = 0
+        self.nextSampleT = 0
 
         QTimer.singleShot(1000, self.startCalibration)
 
@@ -45,20 +58,72 @@ class CalibrationDialog(QDialog):
         self.setLayout(layout)
 
     def initBoardComs(self):
-        pub.subscribe(self.handleFingerConnection, 'FingerConnection')
         if self.side == "L":
             pub.subscribe(self.handleGyroData, 'LGyro')
         else:
             pub.subscribe(self.handleGyroData, 'RGyro')
 
     def startCalibration(self):
-        pass
+        # QTimer.singleShot(0, lambda: self.calibrationPhase(0, 0, 0))
+        self.captureNextCenter = True
+        self.calibrationPhase(0, 0, 0)
 
-    def handleFingerConnection(self, con, finger):
-        pass
+    def calibrationPhase(self, iteration, axis, trial):
+        if trial == self.TRIALS_PER_AXIS * 2 + 1:
+            axis = (axis + 1) % 3
+            if axis == 0:
+                iteration += 1
+                if iteration == self.ITERATIONS:
+                    self.finishCalibration()
+                    return
+
+            self.captureNextCenter = True
+            self.calibrationPhase(iteration, axis, 0)
+            return
+
+        lblstr = ""
+        if trial == self.TRIALS_PER_AXIS * 2:
+            lblstr = "Return to center"
+        else:
+            if axis == 0:
+                lblstr = "Roll "
+            elif axis == 1:
+                lblstr = "Pitch "
+            elif axis == 2:
+                lblstr = "Yaw "
+
+            if trial % 2 == 0:
+                lblstr += "Left"
+            else:
+                lblstr += "Right"
+
+        self.actionLabel.setText(lblstr)
+
+        QTimer.singleShot(self.TIME_PER_TRIAL,
+                          lambda: self.calibrationPhase(iteration, axis, trial+1))
+
+    def finishCalibration(self):
+        print(self.sampleBuffer)
+        print(self.centerBuffer)
+        self.sampleBuffer = self.sampleBuffer[:, 0:self.samplei]
+        self.centerBuffer = self.centerBuffer[:, 0:self.centeri]
+        self.actionLabel.setText("Calibrating, please wait...")
+
+        self.ica = FastICA()
+        newcoords = self.ica.fit_transform(self.sampleBuffer)
+        print(newcoords)
+        self.done(0)
 
     def handleGyroData(self, roll, pitch, yaw, rollChanged, pitchChanged, yawChanged):
-        pass
+        if self.captureNextCenter:
+            self.captureNextCenter = False
+            self.centerBuffer[:, self.centeri] = np.array([roll, pitch, yaw])
+            self.centeri += 1
+
+        if time.time() * 1000 >= self.nextSampleT:
+            self.sampleBuffer[:, self.samplei] = np.array([roll, pitch, yaw])
+            self.samplei += 1
+            self.nextSampleT = time.time() * 1000 + self.TIME_BETWEEN_SAMPLE
 
 
 class ConfigWindow(QWidget):
@@ -105,15 +170,6 @@ class ConfigWindow(QWidget):
         self.lpmaxval = 1.0
         self.lyminval = 0.0
         self.lymaxval = 1.0
-        self.calibActiveRollRight = False
-        self.calibActivePitchRight = False
-        self.calibActiveYawRight = False
-        self.calibActiveRollLeft = False
-        self.calibActivePitchLeft = False
-        self.calibActiveYawLeft = False
-
-        # None or (Roll|Pitch|Yaw|Center) (Right|Left)
-        self.calibActive = "None"
 
         self.midiHandlerOptions = ["None",
                                    "M1",
@@ -268,66 +324,14 @@ class ConfigWindow(QWidget):
             self.rycenter = self.ryval_raw
 
     def calibButton(self, side):
-        # TODO go from center to roll calib to pitch to yaw and then back through again. Record all rpy coords
-        # and then fit a line to each axis, and in the future project onto those three lines
         print("Initiating calibration on side {}".format(side))
         self.leftCalibButton.setEnabled(False)
         self.rightCalibButton.setEnabled(False)
-        if side == "L":
-            side = "Left"
-            self.calibActiveCenterLeft = True
-        else:
-            side = "Right"
-            self.calibActiveCenterRight = True
-        self.calibDialog = QDialog()
-        lbl1 = QLabel("Calibrating {} glove".format(side))
-        self.calibDialogLabel = QLabel("Move to center")
-        l = QVBoxLayout()
-        l.addWidget(lbl1)
-        l.addWidget(self.calibDialogLabel)
-        self.calibDialog.setLayout(l)
 
-        self.calibNextAxis = dict()
-        self.calibNextAxis["Roll"] = "Pitch"
-        self.calibNextAxis["Pitch"] = "Yaw"
-        self.calibNextAxis["Yaw"] = "Roll"
-
-        QTimer.singleShot(2000, lambda: self.calibPhase(1, "Roll"))
-
-        self.calibDialog.setModal(False)
-        self.calibDialog.exec_()
-
-    def dialogUpdateSeries(self, series, delay):
-        if len(series) == 0:
-            return
-
-        s = series.pop()
-        self.calibDialogLabel.setText(s)
-        QTimer.singleShot(delay, lambda: self.dialogUpdateSeries(series, delay))
-
-    def calibPhase(self, nRepeats, axis):
-        if self.calibActiveCenterLeft:
-            self.calibActiveRollLeft = True
-            self.calibActiveCenterLeft = False
-        else:
-            self.calibActiveRollRight = True
-            self.calibActiveCenterRight = False
-        print("Initiating calib roll phase with {} repeats".format(nRepeats))
-        if nRepeats <= 0:
-            self.calibActiveRollLeft = False
-            self.calibActiveRollRight = False
-            self.leftCalibButton.setEnabled(True)
-            self.rightCalibButton.setEnabled(True)
-            self.calibDialog.done(0)
-        else:
-            cmds = deque([])
-            cmds.appendleft("Roll left")
-            cmds.appendleft("Roll right")
-            cmds.appendleft("Roll left")
-            cmds.appendleft("Roll right")
-            cmds.appendleft("Roll center")
-            self.dialogUpdateSeries(cmds, 1000)
-            QTimer.singleShot(1000 * (len(cmds)+1), lambda: self.calibPhase(nRepeats - 1))
+        self.calibDialog = CalibrationDialog(side)
+        self.calibDialog.show()
+        self.leftCalibButton.setEnabled(True)
+        self.rightCalibButton.setEnabled(True)
 
     def calibrollbtn(self, side):
         if side == "L":
@@ -420,22 +424,9 @@ class ConfigWindow(QWidget):
         if self.lyval > 1.0:
             self.lyval -= 1.0
 
-        if self.calibActiveRollLeft:
-            self.lrminval = min(self.lrminval, self.lrval)
-            self.lrmaxval = max(self.lrmaxval, self.lrval)
-            print(self.lrval)
-        else:
-            self.lrval = np.interp(self.lrval, [self.lrminval, 0.5, self.lrmaxval], [0.0, 0.5, 1.0])
-        if self.calibActivePitchLeft:
-            self.lpminval = min(self.lpminval, self.lpval)
-            self.lpmaxval = max(self.lpmaxval, self.lpval)
-        else:
-            self.lpval = np.interp(self.lpval, [self.lpminval, 0.5, self.lpmaxval], [0.0, 0.5, 1.0])
-        if self.calibActiveYawLeft:
-            self.lyminval = min(self.lyminval, self.lyval)
-            self.lymaxval = max(self.lymaxval, self.lyval)
-        else:
-            self.lyval = np.interp(self.lyval, [self.lyminval, 0.5, self.lymaxval], [0.0, 0.5, 1.0])
+        self.lrval = np.interp(self.lrval, [self.lrminval, 0.5, self.lrmaxval], [0.0, 0.5, 1.0])
+        self.lpval = np.interp(self.lpval, [self.lpminval, 0.5, self.lpmaxval], [0.0, 0.5, 1.0])
+        self.lyval = np.interp(self.lyval, [self.lyminval, 0.5, self.lymaxval], [0.0, 0.5, 1.0])
 
         if time.time() * 1000 - self.last_lgyro_time < self.throttleLevel:
             self.lrcint = self.lrcint or rollChanged
@@ -474,21 +465,9 @@ class ConfigWindow(QWidget):
         if self.ryval > 1.0:
             self.ryval -= 1.0
 
-        if self.calibActiveRollRight:
-            self.rrminval = min(self.rrminval, self.rrval)
-            self.rrmaxval = max(self.rrmaxval, self.rrval)
-        else:
-            self.rrval = np.interp(self.rrval, [self.rrminval, 0.5, self.rrmaxval], [0.0, 0.5, 1.0])
-        if self.calibActivePitchRight:
-            self.rpminval = min(self.rpminval, self.rpval)
-            self.rpmaxval = max(self.rpmaxval, self.rpval)
-        else:
-            self.rpval = np.interp(self.rpval, [self.rpminval, 0.5, self.rpmaxval], [0.0, 0.5, 1.0])
-        if self.calibActiveYawRight:
-            self.ryminval = min(self.ryminval, self.ryval)
-            self.rymaxval = max(self.rymaxval, self.ryval)
-        else:
-            self.ryval = np.interp(self.ryval, [self.ryminval, 0.5, self.rymaxval], [0.0, 0.5, 1.0])
+        self.rrval = np.interp(self.rrval, [self.rrminval, 0.5, self.rrmaxval], [0.0, 0.5, 1.0])
+        self.rpval = np.interp(self.rpval, [self.rpminval, 0.5, self.rpmaxval], [0.0, 0.5, 1.0])
+        self.ryval = np.interp(self.ryval, [self.ryminval, 0.5, self.rymaxval], [0.0, 0.5, 1.0])
 
         if time.time() * 1000 - self.last_rgyro_time < self.throttleLevel:
             self.rrcint = self.rrcint or rollChanged
