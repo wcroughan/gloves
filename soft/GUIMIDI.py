@@ -29,7 +29,9 @@ class CalibrationDialog(QDialog):
 
         self.TIME_BETWEEN_SAMPLE = 25  # ms
         self.TRIALS_PER_AXIS = 2
-        if False:
+
+        self.DEBUG_MODE = False
+        if not self.DEBUG_MODE:
             self.ITERATIONS = 2
             self.SAMPLES_PER_TRIAL = 40
         else:
@@ -44,9 +46,11 @@ class CalibrationDialog(QDialog):
 
         self.sampleBuffer = np.empty((3, self.SAMPLES_PER_AXIS))
         self.centerBuffer = np.empty((3, self.NUM_CENTER_SAMPLES))
+        self.axisEndBuffer = np.empty((3, 3))
         self.sampleBuffer[:] = np.nan
         self.centerBuffer[:] = np.nan
         self.captureNextCenter = False
+        self.captureNextAxis = None
         self.centeri = 0
 
         self.samplei = 0
@@ -89,6 +93,7 @@ class CalibrationDialog(QDialog):
         lblstr = ""
         if trial == self.TRIALS_PER_AXIS * 2:
             lblstr = "Return to center"
+            self.captureNextAxis = axis
         else:
             if axis == 0:
                 lblstr = "Roll "
@@ -98,9 +103,9 @@ class CalibrationDialog(QDialog):
                 lblstr = "Yaw "
 
             if trial % 2 == 0:
-                lblstr += "Left"
+                lblstr += "Up"
             else:
-                lblstr += "Right"
+                lblstr += "Down"
 
         self.actionLabel.setText(lblstr)
 
@@ -108,6 +113,11 @@ class CalibrationDialog(QDialog):
                           lambda: self.calibrationPhase(iteration, axis, trial+1))
 
     def finishCalibration(self):
+        if self.side == "L":
+            pub.unsubscribe(self.handleGyroData, 'LGyro')
+        else:
+            pub.unsubscribe(self.handleGyroData, 'RGyro')
+
         print(self.sampleBuffer)
         print(self.centerBuffer)
         self.sampleBuffer = self.sampleBuffer[:, 0:self.samplei]
@@ -117,16 +127,23 @@ class CalibrationDialog(QDialog):
         self.center = np.mean(self.centerBuffer, axis=1)
         print(self.center)
         print(self.sampleBuffer)
-        self.sampleBuffer = (self.sampleBuffer.T - self.center).T
-
-        fig = plt.figure()
-        ax = fig.add_subplot(projection='3d')
-        ax.scatter(self.sampleBuffer[0, :], self.sampleBuffer[1, :], self.sampleBuffer[2, :])
-        plt.show()
+        self.sampleBuffer = self.sampleBuffer.T - self.center
 
         self.ica = FastICA()
         newcoords = self.ica.fit_transform(self.sampleBuffer)
         print(newcoords)
+
+        self.axisEndBuffer = self.axisEndBuffer.T - self.center
+        endcoords = self.ica.transform(self.axisEndBuffer)
+        print(endcoords)
+        #  this is the 3 "down ends", just need to assign to axes
+
+        # fig = plt.figure()
+        # ax = fig.add_subplot(projection='3d')
+        # ax.scatter(newcoords[:, 0], newcoords[:, 1], newcoords[:, 2])
+        # ax.scatter(endcoords[:, 0], endcoords[:, 1], endcoords[:, 2])
+        # plt.show()
+
         self.done(0)
 
     def handleGyroData(self, roll, pitch, yaw, rollChanged, pitchChanged, yawChanged):
@@ -134,6 +151,10 @@ class CalibrationDialog(QDialog):
             self.captureNextCenter = False
             self.centerBuffer[:, self.centeri] = np.array([roll, pitch, yaw])
             self.centeri += 1
+
+        if self.captureNextAxis is not None:
+            self.axisEndBuffer[:, self.captureNextAxis] = np.array([roll, pitch, yaw])
+            self.captureNextAxis = None
 
         if time.time() * 1000 >= self.nextSampleT:
             self.sampleBuffer[:, self.samplei] = np.array([roll, pitch, yaw])
