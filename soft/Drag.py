@@ -11,9 +11,11 @@ from MIDI import MIDIMapping
 class DragControl:
     def __init__(self, rollF=lambda v: None, rollFRange=(0.0, 1.0),
                  pitchF=lambda v: None, pitchFRange=(0.0, 1.0),
-                 yawF=lambda v: None, yawFRange=(0.0, 1.0)):
+                 yawF=lambda v: None, yawFRange=(0.0, 1.0),
+                 updateSignal=None):
         self.leftActive = False
         self.rightActive = False
+        self.updateSignal = updateSignal
 
         self.r_start = 0
         self.p_start = 0
@@ -44,7 +46,7 @@ class DragControl:
         self.pEnabled = True
         self.yEnabled = True
 
-        self.widget = DragControlWidget(self)
+        self.widget = DragControlWidget(self, self.updateSignal)
 
     def isLeftActive(self):
         return self.leftActive
@@ -166,8 +168,9 @@ class DragControlXYPadWidget(QWidget):
 
 
 class DragControlWidget(QWidget):
-    def __init__(self, control):
+    def __init__(self, control, updateSignal):
         super().__init__()
+        self.updateSignal = updateSignal
 
         self.rEnabled = True
         self.pEnabled = True
@@ -216,7 +219,8 @@ class DragControlWidget(QWidget):
                 'QPushButton {background-color: white; border:  none}')
 
         self._control.setREnabled(self.rEnabled)
-        self.update()
+        # self.update()
+        self.updateSignal.emit()
 
     def togglePEnabled(self):
         self.pEnabled = not self.pEnabled
@@ -228,7 +232,8 @@ class DragControlWidget(QWidget):
                 'QPushButton {background-color: white; border:  none}')
 
         self._control.setPEnabled(self.pEnabled)
-        self.update()
+        # self.update()
+        self.updateSignal.emit()
 
     def toggleYEnabled(self):
         self.yEnabled = not self.yEnabled
@@ -240,22 +245,26 @@ class DragControlWidget(QWidget):
                 'QPushButton {background-color: white; border:  none}')
 
         self._control.setYEnabled(self.yEnabled)
-        self.update()
+        # self.update()
+        self.updateSignal.emit()
 
     def setX(self, val):
         # print("Widget get val {}".format(val))
         self.xyPad.setX(val)
-        self.update()
+        # self.update()
+        self.updateSignal.emit()
 
     def setY(self, val):
         # print("Widget get val {}".format(val))
         self.xyPad.setY(val)
-        self.update()
+        # self.update()
+        self.updateSignal.emit()
 
     def setZ(self, val):
-        # print("Widget get val {}".format(val))
+        print("Widget got z val {}".format(val))
         self.xyPad.setZ(val)
-        self.update()
+        # self.update()
+        self.updateSignal.emit()
 
     def setLeftActive(self, val):
         if val:
@@ -264,7 +273,8 @@ class DragControlWidget(QWidget):
         else:
             self.leftActiveButton.setStyleSheet(
                 'QPushButton {background-color: white; border:  none}')
-        self.update()
+        # self.update()
+        self.updateSignal.emit()
 
     def setRightActive(self, val):
         if val:
@@ -273,7 +283,8 @@ class DragControlWidget(QWidget):
         else:
             self.rightActiveButton.setStyleSheet(
                 'QPushButton {background-color: white; border:  none}')
-        self.update()
+        # self.update()
+        self.updateSignal.emit()
 
 
 class DragMap(MIDIMapping):
@@ -284,9 +295,10 @@ class DragMap(MIDIMapping):
     right hand does midi ccs
     """
 
-    def __init__(self, midiport):
+    def __init__(self, midiport, updateSignal):
         super().__init__(midiport)
         self.ccstart = 32
+        self.updateSignal = updateSignal
 
         self.rr_val = 0
         self.rp_val = 0
@@ -297,7 +309,7 @@ class DragMap(MIDIMapping):
 
         self.initControls()
         self.initWidget()
-        self.widget.update()
+        # self.widget.update()
 
     def initWidget(self):
         layout = QVBoxLayout()
@@ -332,7 +344,8 @@ class DragMap(MIDIMapping):
         for ci, c in enumerate(cons):
             dc = DragControl(rollF=makeCCFunc(1, cc), rollFRange=(0, 127),
                              pitchF=makeCCFunc(1, cc+1), pitchFRange=(0, 127),
-                             yawF=makeCCFunc(1, cc+2), yawFRange=(0, 127))
+                             yawF=makeCCFunc(1, cc + 2), yawFRange=(0, 127),
+                             updateSignal=self.updateSignal)
             cc += 3
             self.controls.append(dc)
             self.controlDict[c] = dc

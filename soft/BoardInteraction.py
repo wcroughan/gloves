@@ -87,6 +87,10 @@ class BoardInteractor(ThreadExtension.StoppableThread):
         self.plotLen = 30
         self.plotVals = np.zeros((3, self.plotLen))
 
+        self.GYRO_MIN_DELAY = 50  # ms between gyro messages (independent between hands)
+        self.last_lgyro_time = 0
+        self.last_rgyro_time = 0
+
     def run(self):
         if not self._isconnected:
             r = self.connectToBoard()
@@ -137,21 +141,26 @@ class BoardInteractor(ThreadExtension.StoppableThread):
                         #     hlen = self.HAPTIC_LEN_SHORT
                         # self.setHaptic(self.motorForFinger(i), hlen)
 
-                if self._lroll != self._lroll_old or self._lpitch != self._lpitch_old or self._lyaw != self._lyaw_old:
-                    pub.sendMessage('LGyro', roll=self._lroll, pitch=self._lpitch, yaw=self._lyaw,
-                                    rollChanged=self._lroll != self._lroll_old, pitchChanged=self._lpitch != self._lpitch_old, yawChanged=self._lyaw != self._lyaw_old)
-                    self._lroll_old = self._lroll
-                    self._lpitch_old = self._lpitch
-                    self._lyaw_old = self._lyaw
+                if time.time() * 1000 - self.last_lgyro_time > self.GYRO_MIN_DELAY:
+                    if self._lroll != self._lroll_old or self._lpitch != self._lpitch_old or self._lyaw != self._lyaw_old:
+                        pub.sendMessage('LGyro', roll=self._lroll, pitch=self._lpitch, yaw=self._lyaw,
+                                        rollChanged=self._lroll != self._lroll_old, pitchChanged=self._lpitch != self._lpitch_old, yawChanged=self._lyaw != self._lyaw_old)
+                        self._lroll_old = self._lroll
+                        self._lpitch_old = self._lpitch
+                        self._lyaw_old = self._lyaw
+                        self.last_lgyro_time = time.time() * 1000
 
-                if self._rroll != self._rroll_old or self._rpitch != self._rpitch_old or self._ryaw != self._ryaw_old:
-                    pub.sendMessage('RGyro', roll=self._rroll, pitch=self._rpitch, yaw=self._ryaw,
-                                    rollChanged=self._rroll != self._rroll_old, pitchChanged=self._rpitch != self._rpitch_old, yawChanged=self._ryaw != self._ryaw_old)
-                    self._rroll_old = self._rroll
-                    self._rpitch_old = self._rpitch
-                    self._ryaw_old = self._ryaw
+                if time.time() * 1000 - self.last_rgyro_time > self.GYRO_MIN_DELAY:
+                    if self._rroll != self._rroll_old or self._rpitch != self._rpitch_old or self._ryaw != self._ryaw_old:
+                        pub.sendMessage('RGyro', roll=self._rroll, pitch=self._rpitch, yaw=self._ryaw,
+                                        rollChanged=self._rroll != self._rroll_old, pitchChanged=self._rpitch != self._rpitch_old, yawChanged=self._ryaw != self._ryaw_old)
+                        self._rroll_old = self._rroll
+                        self._rpitch_old = self._rpitch
+                        self._ryaw_old = self._ryaw
+                        self.last_rgyro_time = time.time() * 1000
 
     # COMMUNICATION FUNCTIONS WITH BOARD
+
     def connectToBoard(self):
         try:
             self._board = serial.Serial(port="/dev/ttyACM0", baudrate=115200)
