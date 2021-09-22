@@ -8,6 +8,7 @@ import numpy as np
 from collections import deque
 from sklearn.decomposition import FastICA
 import matplotlib.pyplot as plt
+from scipy.interpolate import interp1d
 
 
 from FakeBoard import FakeBoard
@@ -30,13 +31,13 @@ class CalibrationDialog(QDialog):
         self.TIME_BETWEEN_SAMPLE = 25  # ms
         self.TRIALS_PER_AXIS = 2
 
-        self.DEBUG_MODE = False
+        self.DEBUG_MODE = True
         if not self.DEBUG_MODE:
             self.ITERATIONS = 2
             self.SAMPLES_PER_TRIAL = 40
         else:
             self.ITERATIONS = 1
-            self.SAMPLES_PER_TRIAL = 20
+            self.SAMPLES_PER_TRIAL = 10
         self.TIME_PER_TRIAL = self.TIME_BETWEEN_SAMPLE * self.SAMPLES_PER_TRIAL
 
         self.SAMPLES_PER_AXIS = self.TIME_PER_TRIAL * \
@@ -44,7 +45,7 @@ class CalibrationDialog(QDialog):
 
         self.NUM_CENTER_SAMPLES = self.ITERATIONS * 3
 
-        self.sampleBuffer = np.empty((3, self.SAMPLES_PER_AXIS))
+        self.sampleBuffer = np.empty((3, self.SAMPLES_PER_AXIS * 3))
         self.centerBuffer = np.empty((3, self.NUM_CENTER_SAMPLES))
         self.axisEndBuffer = np.empty((3, 3))
         self.sampleBuffer[:] = np.nan
@@ -52,9 +53,20 @@ class CalibrationDialog(QDialog):
         self.captureNextCenter = False
         self.captureNextAxis = None
         self.centeri = 0
-
         self.samplei = 0
         self.nextSampleT = 0
+
+        if self.DEBUG_MODE:
+            self.centerBuffer[:] = 0.5
+            self.sampleBuffer[:] = 0.5
+            self.sampleBuffer[0, 0:4] = np.linspace(0.3, 0.7, 4)
+            self.sampleBuffer[1, 4:8] = np.linspace(0.1, 0.9, 4)
+            self.sampleBuffer[2, 8:12] = np.linspace(0, 1, 4)
+            self.centeri = self.NUM_CENTER_SAMPLES
+            self.samplei = self.SAMPLES_PER_AXIS * 3
+            self.axisEndBuffer[:] = 0.5
+            self.axisEndBuffer = self.axisEndBuffer - 0.5 * np.eye(3)
+            print(self.axisEndBuffer)
 
         QTimer.singleShot(1000, self.startCalibration)
 
@@ -136,13 +148,27 @@ class CalibrationDialog(QDialog):
         self.axisEndBuffer = self.axisEndBuffer.T - self.center
         endcoords = self.ica.transform(self.axisEndBuffer)
         print(endcoords)
-        #  this is the 3 "down ends", just need to assign to axes
+        self.axes = np.argmax(np.abs(endcoords), axis=1)
+        print(self.axes)
 
-        # fig = plt.figure()
-        # ax = fig.add_subplot(projection='3d')
-        # ax.scatter(newcoords[:, 0], newcoords[:, 1], newcoords[:, 2])
-        # ax.scatter(endcoords[:, 0], endcoords[:, 1], endcoords[:, 2])
-        # plt.show()
+        axismins = np.min(newcoords, axis=0)
+        axismaxs = np.max(newcoords, axis=0)
+        self.axisranges = np.zeros((3, 3))
+        self.axisranges[:, 0] = axismins
+        self.axisranges[:, 2] = axismaxs
+        for i in range(3):
+            if endcoords[i, self.axes[i]] > 0:
+                tmp = self.axisranges[i, 0]
+                self.axisranges[i, 0] = self.axisranges[i, 2]
+                self.axisranges[i, 2] = tmp
+                print("flipping {}".format(i))
+        print(self.axisranges)
+
+        fig = plt.figure()
+        ax = fig.add_subplot(projection='3d')
+        ax.scatter(newcoords[:, 0], newcoords[:, 1], newcoords[:, 2])
+        ax.scatter(endcoords[:, 0], endcoords[:, 1], endcoords[:, 2])
+        plt.show()
 
         self.done(0)
 
@@ -206,6 +232,9 @@ class ConfigWindow(QWidget):
         self.lpmaxval = 1.0
         self.lyminval = 0.0
         self.lymaxval = 1.0
+
+        self.isLeftCalibrated = False
+        self.isRightCalibrated = False
 
         self.midiHandlerOptions = ["None",
                                    "M1",
@@ -365,74 +394,35 @@ class ConfigWindow(QWidget):
         self.rightCalibButton.setEnabled(False)
 
         self.calibDialog = CalibrationDialog(side)
-        self.calibDialog.show()
+        self.calibDialog.exec()
         self.leftCalibButton.setEnabled(True)
         self.rightCalibButton.setEnabled(True)
-
-    def calibrollbtn(self, side):
         if side == "L":
-            self.lrminval = self.lrval - 0.01
-            self.lrmaxval = self.lrval - 0.01
-            self.calibLabel_l.setText("Roll calibrating...")
-            self.calibActiveRollLeft = True
+            self.isLeftCalibrated = True
+            self.leftCalib = self.calibDialog
+            fvnofl = (0.0, 1.0)
+            fvflip = (1.0, 0.0)
+            if self.leftCalib.axisranges[0, 0] < self.leftCalib.axisranges[0, 2]:
+                fv = fvnofl
+            else:
+                fv = fvflip
+            self.leftInterp0 = interp1d(self.leftCalib.axisranges[0, :], [
+                                        0.0, 0.5, 1.0], fill_value=fv, bounds_error=False)
+            if self.leftCalib.axisranges[1, 0] < self.leftCalib.axisranges[1, 2]:
+                fv = fvnofl
+            else:
+                fv = fvflip
+            self.leftInterp1 = interp1d(self.leftCalib.axisranges[1, :], [
+                                        0.0, 0.5, 1.0], fill_value=fv, bounds_error=False)
+            if self.leftCalib.axisranges[2, 0] < self.leftCalib.axisranges[2, 2]:
+                fv = fvnofl
+            else:
+                fv = fvflip
+            self.leftInterp2 = interp1d(self.leftCalib.axisranges[2, :], [
+                                        0.0, 0.5, 1.0], fill_value=fv, bounds_error=False)
         else:
-            self.rrminval = self.rrval - 0.01
-            self.rrmaxval = self.rrval - 0.01
-            self.calibLabel_r.setText("Roll calibrating...")
-            self.calibActiveRollRight = True
-
-        QTimer.singleShot(3000, lambda: self.calibrollfinish(side))
-
-    def calibrollfinish(self, side):
-        if side == "L":
-            self.calibActiveRollLeft = False
-            self.calibLabel_l.setText("")
-        else:
-            self.calibActiveRollRight = False
-            self.calibLabel_r.setText("")
-
-    def calibpitchbtn(self, side):
-        if side == "L":
-            self.lpminval = self.lpval - 0.01
-            self.lpmaxval = self.lpval - 0.01
-            self.calibLabel_l.setText("Pitch calibrating...")
-            self.calibActivePitchLeft = True
-        else:
-            self.rpminval = self.rpval - 0.01
-            self.rpmaxval = self.rpval - 0.01
-            self.calibLabel_r.setText("Pitch calibrating...")
-            self.calibActivePitchRight = True
-
-        QTimer.singleShot(3000, lambda: self.calibpitchfinish(side))
-
-    def calibpitchfinish(self, side):
-        if side == "L":
-            self.calibActivePitchLeft = False
-            self.calibLabel_l.setText("")
-        else:
-            self.calibActivePitchRight = False
-            self.calibLabel_r.setText("")
-
-    def calibyawbtn(self, side):
-        if side == "L":
-            self.lyminval = self.lyval - 0.01
-            self.lymaxval = self.lyval - 0.01
-            self.calibLabel_l.setText("Yaw calibrating...")
-            self.calibActiveYawLeft = True
-        else:
-            self.ryminval = self.ryval - 0.01
-            self.rymaxval = self.ryval - 0.01
-            self.calibLabel_r.setText("Yaw calibrating...")
-            self.calibActiveYawRight = True
-        QTimer.singleShot(3000, lambda: self.calibyawfinish(side))
-
-    def calibyawfinish(self, side):
-        if side == "L":
-            self.calibActiveYawLeft = False
-            self.calibLabel_l.setText("")
-        else:
-            self.calibActiveYawRight = False
-            self.calibLabel_r.setText("")
+            self.isRightCalibrated = True
+            self.rightCalib = self.calibDialog
 
     def initBoardComs(self):
         pub.subscribe(self.handleFingerConnection, 'FingerConnection')
@@ -450,19 +440,35 @@ class ConfigWindow(QWidget):
         self.lrval_raw = roll
         self.lpval_raw = pitch
         self.lyval_raw = yaw
-        self.lrval = roll - self.lrcenter + 0.5
-        if self.lrval > 1.0:
-            self.lrval -= 1.0
-        self.lpval = pitch - self.lpcenter + 0.5
-        if self.lpval > 1.0:
-            self.lpval -= 1.0
-        self.lyval = yaw - self.lycenter + 0.5
-        if self.lyval > 1.0:
-            self.lyval -= 1.0
 
-        self.lrval = np.interp(self.lrval, [self.lrminval, 0.5, self.lrmaxval], [0.0, 0.5, 1.0])
-        self.lpval = np.interp(self.lpval, [self.lpminval, 0.5, self.lpmaxval], [0.0, 0.5, 1.0])
-        self.lyval = np.interp(self.lyval, [self.lyminval, 0.5, self.lymaxval], [0.0, 0.5, 1.0])
+        if self.isLeftCalibrated:
+            c = np.array([roll, pitch, yaw]) - self.leftCalib.center
+            t = self.leftCalib.ica.transform(c.reshape((1, -1)))[0, :]
+            v = np.empty((3,))
+            print("c {}".format(c))
+            print("t {}".format(t))
+            # raise Exception("replace with scipy")
+            # v[0] = np.interp(t[0], self.leftCalib.axisranges[0, :], [0.0, 0.5, 1.0])
+            # v[1] = np.interp(t[1], self.leftCalib.axisranges[1, :], [0.0, 0.5, 1.0])
+            # v[2] = np.interp(t[2], self.leftCalib.axisranges[2, :], [0.0, 0.5, 1.0])
+            v[0] = self.leftInterp0(t[0])
+            v[1] = self.leftInterp1(t[1])
+            v[2] = self.leftInterp2(t[2])
+
+            self.lrval = v[self.leftCalib.axes[0]]
+            self.lpval = v[self.leftCalib.axes[1]]
+            self.lyval = v[self.leftCalib.axes[2]]
+            print("rpy: {}, {}, {}".format(self.lrval, self.lpval, self.lyval))
+        else:
+            self.lrval = roll - self.lrcenter + 0.5
+            if self.lrval > 1.0:
+                self.lrval -= 1.0
+            self.lpval = pitch - self.lpcenter + 0.5
+            if self.lpval > 1.0:
+                self.lpval -= 1.0
+            self.lyval = yaw - self.lycenter + 0.5
+            if self.lyval > 1.0:
+                self.lyval -= 1.0
 
         if time.time() * 1000 - self.last_lgyro_time < self.throttleLevel:
             self.lrcint = self.lrcint or rollChanged
