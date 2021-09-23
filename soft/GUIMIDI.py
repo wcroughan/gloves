@@ -228,7 +228,9 @@ class ConfigWindow(QWidget):
         # QWidget.__init__(self)
         super().__init__()
 
-        self.updateSignal.connect(self.update)
+        self.updateSignal.connect(self.updateSignalFunc)
+        self.lastUpdateSignalTime = 0
+        self.UPDATE_SIGNAL_REFRAC = 0
 
         # value is the minimum delay in milliseconds between cc sends
         self.throttleLevels = [0, 33, 200, 1000]
@@ -287,6 +289,11 @@ class ConfigWindow(QWidget):
 
         self.midiHandlerComboBox.setCurrentIndex(3)
         self.inputComboBox.setCurrentIndex(1)
+
+    def updateSignalFunc(self):
+        if time.time() * 1000 - self.lastUpdateSignalTime >= self.UPDATE_SIGNAL_REFRAC:
+            self.update()
+            self.lastUpdateSignalTime = time.time() * 1000
 
     def initUI(self):
         self.setWindowTitle("MIDI Glove Config")

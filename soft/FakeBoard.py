@@ -24,10 +24,10 @@ class FakeBoard(QWidget):
 
         self.initUI()
 
-        if False:
+        if True:
             self.dataTimer = QTimer()
             self.dataTimer.timeout.connect(self.sendAData)
-            self.dataTimer.start(100)
+            self.dataTimer.start(1)
 
     def initUI(self):
         self.setWindowTitle("Gloves!")
@@ -128,7 +128,9 @@ class FakeBoard(QWidget):
 
     def sendAData(self):
         print("Sending Random Data")
-        self.gyrovalChanged("LR", random.random())
+        self.gyrovalChanged("RR", random.random())
+        self.gyrovalChanged("RP", random.random())
+        self.gyrovalChanged("RY", random.random())
 
 
 class FakeGyroWidget(QWidget):
