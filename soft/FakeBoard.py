@@ -24,7 +24,7 @@ class FakeBoard(QWidget):
 
         self.initUI()
 
-        if True:
+        if False:
             self.dataTimer = QTimer()
             self.dataTimer.timeout.connect(self.sendAData)
             self.dataTimer.start(1)

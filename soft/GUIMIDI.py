@@ -23,6 +23,7 @@ class CalibrationDialog(QDialog):
     def __init__(self, side):
         super().__init__()
         self.showFig = True
+        self.saveSampleData = True
         self.DEBUG_MODE = False
 
         self.side = side
@@ -148,6 +149,10 @@ class CalibrationDialog(QDialog):
         # print(self.centerBuffer)
         self.sampleBuffer = self.sampleBuffer[:, 0:self.samplei]
         self.centerBuffer = self.centerBuffer[:, 0:self.centeri]
+
+        if self.saveSampleData:
+            fname = "./calibSample.npz"
+            np.savez(fname, samples=self.sampleBuffer, centers=self.centerBuffer)
 
         self.center = np.mean(self.centerBuffer, axis=1)
         # print(self.center)
